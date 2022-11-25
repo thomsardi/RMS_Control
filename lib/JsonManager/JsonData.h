@@ -4,8 +4,8 @@ struct CellData
 {
     int bid = 0;
     int vcell[45] = {0};
-    int temp[9] = {0};
-    int pack[3] = {0};
+    int32_t temp[9] = {0};
+    int32_t pack[3] = {0};
     int status = 0;
 };
 
@@ -30,8 +30,8 @@ struct AlarmParam
 {
     int vcell_max = 0;
     int vcell_min = 0;
-    int temp_max = 0;
-    int temp_min = 0;
+    int32_t temp_max = 0;
+    int32_t temp_min = 0;
 };
 
 struct CellAlarm
