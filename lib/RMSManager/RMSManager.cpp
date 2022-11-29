@@ -58,3 +58,13 @@ String RMSManager::createJsonLedRequest(uint8_t bid, uint8_t ledPosition, LedCol
     serializeJson(docBattery, output);
     return output;
 }
+
+String RMSManager::createCMSInfoRequest(uint8_t bid)
+{
+    String output;
+    DynamicJsonDocument docBattery(1024);
+    docBattery["BID"] = bid;
+    docBattery["INFO"] = 1;
+    serializeJson(docBattery, output);
+    return output;
+}

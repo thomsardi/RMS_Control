@@ -66,6 +66,19 @@ CellBalancingStatus cellBalancingStatus[8];
 CommandStatus commandStatus;
 
 bool balancingCommand = false;
+bool commandCompleted = false;
+bool responseCompleted = false;
+bool isFirstRun = true;
+bool sendCommand = true;
+bool isGotCMSInfo = false;
+int commandSequence = 0;
+int deviceAddress = 1;
+unsigned long lastTime = 0;
+String commandString;
+String responseString;
+String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
+
+
 
 void declareStruct()
 {
@@ -117,7 +130,7 @@ void declareStruct()
 
     alarmParam.temp_max = 70000;
     alarmParam.temp_min = 20000;
-    alarmParam.vcell_max = 3500;
+    alarmParam.vcell_max = 3700;
     alarmParam.vcell_min = 2700;
 
     for (size_t i = 0; i < 45; i++)
@@ -150,53 +163,62 @@ String arrToStr(T a[], int len)
     return b;
 }
 
-void vcell(int a)
+int readVcell(String input)
 {
-
-    int check = 0;
-    int checknilairusak = 0;
-    int checknilaisehat = 0;
-    int led = a - 1;
-    int startIndex = a - 1; // bid start from 1, array index start from 0
+    int bid = 0;
+    int status = 0;
+    int led;
+    int errTimeout;
+    int startIndex; // bid start from 1, array index start from 0
     bool isAllDataCaptured = false;
     bool isAllDataNormal = true;
-    cellData[startIndex].bid = a;
-
-    Serial.println("Capturing Vcell Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-
-    String output = rmsManager.createJsonVcellDataRequest(a);
-
-    // serializeJson(docBattery, Serial2);
-    Serial2.print(output);
+    bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
-    deserializeJson(docBattery, Serial2);
+    DeserializationError error = deserializeJson(docBattery, input);    
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // serializeJson(docBattery, jsonDoc);
+    // Serial.println(jsonDoc);
     JsonObject object = docBattery.as<JsonObject>();
     if (!object.isNull())
     {
-        Serial.print("masuk");
+        
+        if (docBattery.containsKey("BID"))
+        {
+            bid = docBattery["BID"];
+            startIndex = bid - 1;
+            cellData[startIndex].bid = bid;
+        }
         if (docBattery.containsKey("VCELL"))
         {
-            Serial.println("Contains key VCELL");
-            int arrSize = sizeof(docBattery["VCELL"]) / sizeof(docBattery["VCELL"][0]);
-            Serial.println("Array Size = " + String(arrSize));
+            // Serial.println("Contains key VCELL");
+            JsonArray jsonArray = docBattery["VCELL"].as<JsonArray>();
+            // int arrSize = sizeof(docBattery["VCELL"]) / sizeof(docBattery["VCELL"][0]);
+            int arrSize = jsonArray.size();
+            // Serial.println("Array Size = " + String(arrSize));
             if (arrSize >= 45)
             {
+                Serial.println("Vcell Reading Address : " + String(bid));                
                 for (int i = 0; i < 45; i++)
                 {
                     cell[i] = docBattery["VCELL"][i];
                     cellData[startIndex].vcell[i] = cell[i];
+                    Serial.println("Vcell " + String(i+1) + " = " + String(cell[i]));
                 }
                 isAllDataCaptured = true;
-                Serial.println("All Vcell Data Captured");
             }
         }
+        else
+        {
+            isValidJsonFormat = false;
+            return status;
+        }
     }
-    int len = sizeof(cell) / sizeof(cell[0]);
-    String c = arrToStr<int>(cell, len);
-    Serial.println(c);
+    
 
     if (isAllDataCaptured)
     {
@@ -217,14 +239,20 @@ void vcell(int a)
 
         for (int c : cell)
         {
-            if ((c <= 200 && c >= alarmParam.vcell_min) && c <= alarmParam.vcell_max)
+            if (c <= 200) //ignore the unconnected cell
             {
-
+                isAllDataNormal = true;
+            }
+            else if (c >= alarmParam.vcell_min && c <= alarmParam.vcell_max) 
+            {
                 isAllDataNormal = true;
             }
             else
             {
+                // Serial.println("Vcell min = " + String(alarmParam.vcell_min));
+                // Serial.println("Vcell max = " + String(alarmParam.vcell_max));
                 isAllDataNormal = false;
+                // Serial.println("Abnormal Cell Voltage = " + String(c));
                 break;
             }
         }
@@ -236,10 +264,8 @@ void vcell(int a)
             ledColor.r = 200;
             ledColor.g = 0;
             ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(a, a, ledColor);
-            Serial2.print(output);
-            // serializeJson(docBattery, Serial2);
-            delay(100);
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);            
         }
         else 
         {
@@ -248,9 +274,10 @@ void vcell(int a)
             ledColor.r = 0;
             ledColor.g = 200;
             ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(a, a, ledColor);
-            Serial2.print(output);
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
         }
+        status = 1;
     }
     else
     {
@@ -259,61 +286,66 @@ void vcell(int a)
         ledColor.r = 127;
         ledColor.g = 127;
         ledColor.b = 0;
-        String output = rmsManager.createJsonLedRequest(a, a, ledColor);
-        Serial2.print(output);
+        String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+        Serial2.println(output);
     }
-
-
-    leds[led] = CRGB(129, 141, 214);
-
-    FastLED.show();
-    Serial.println("End Of Vcell");
-    // Serial.print(".");
-    // Serial.println("..............................////////////////...........");
+    return status;
 }
 
-void Temp(int id)
+int readTemp(String input)
 {
-    int check = 0;
-    int led = id - 1;
-    int startIndex = id - 1; // because id start from 1, array index start from 0
+    int bid = 0;
+    int startIndex = 0;
+    int status = 0;
     bool isAllDataCaptured = false;
-    bool isAllDataNormal = false;
-    Serial.println("Capturing Temperature Data");
-    leds[led] = CRGB(227, 160, 17);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createJsonTempDataRequest(id);
-    Serial2.print(output);
+    bool isAllDataNormal = true;
+    bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
-    deserializeJson(docBattery, Serial2);
+    DeserializationError error = deserializeJson(docBattery, input);
+
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // Serial.println(jsonDoc);
     JsonObject object = docBattery.as<JsonObject>();
-    
     if (!object.isNull())
     {
+        if (docBattery.containsKey("BID"))
+        {
+            bid = docBattery["BID"];
+            startIndex = bid - 1;
+            cellData[startIndex].bid = bid;
+        }
         if (docBattery.containsKey("TEMP"))
         {
-            int arrSize = sizeof(docBattery["TEMP"]) / sizeof(docBattery["TEMP"][0]);
+            // Serial.println("Contain TEMP key value");
+            JsonArray jsonArray = docBattery["TEMP"].as<JsonArray>();
+            int arrSize = jsonArray.size();
             if (arrSize >= 9)
             {
+                Serial.println("Temperature Reading Address : " + String(bid));
                 for (int i = 0; i < 9; i++)
                 {
                     float storage = docBattery["TEMP"][i];
                     temp[i] = (int32_t) storage * 1000;
                     cellData[startIndex].temp[i] = temp[i];
+                    Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
                 }
                 isAllDataCaptured = true;
             }
             
         }
+        else
+        {
+            bool isValidJsonFormat = true;
+            return status;
+        }
             
     }
     
-    int len = sizeof(temp) / sizeof(temp[0]);
-    String t = arrToStr<int32_t>(temp, len);
-    Serial.println("TEMP BID" + String(id));
-    Serial.println(t);
-
     if (isAllDataCaptured)
     {
         
@@ -337,8 +369,8 @@ void Temp(int id)
             ledColor.r = 0;
             ledColor.g = 200;
             ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(id, id, ledColor);
-            Serial2.print(output);
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
         }
         else
         {
@@ -347,10 +379,10 @@ void Temp(int id)
             ledColor.r = 200;
             ledColor.g = 0;
             ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(id, id, ledColor);
-            Serial2.print(output);
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
         }
-
+        status = 1;
         
         /*
         String Link;
@@ -382,59 +414,72 @@ void Temp(int id)
         ledColor.r = 127;
         ledColor.g = 127;
         ledColor.b = 0;
-        String output = rmsManager.createJsonLedRequest(id, id, ledColor);
-        Serial2.print(output);
-
+        String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+        Serial2.println(output);
     }
-
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    delay(10);
+    return status;
 }
 
-void Vpack(int id)
+
+int readVpack(String input)
 {
-    int check = 0;
-    int led = id - 1;
-    int startIndex = id - 1; // bid start from 1, array index start from 0
-    bool isAllDataNormal = false;
+    int bid = 0;
+    int startIndex = 0;
+    int status = 0;
     bool isAllDataCaptured = false;
-    Serial.println("Capturing Vpack Data");
-    leds[led] = CRGB(227, 160, 17);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createJsonVpackDataRequest(id);
-    Serial2.print(output);
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
-    deserializeJson(docBattery, Serial2);
+    DeserializationError error = deserializeJson(docBattery, input);
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
     JsonObject object = docBattery.as<JsonObject>();
-    
+    // Serial.println(jsonDoc);
     if (!object.isNull())
     {
+        if (docBattery.containsKey("BID"))
+        {
+            bid = docBattery["BID"];
+            startIndex = bid - 1;
+        }
         if (docBattery.containsKey("VPACK"))
         {
-            
-            int arrSize = sizeof(docBattery["VPACK"]) / sizeof(docBattery["VPACK"][0]);
-            
+            // Serial.println("Contain VPACK key Value");
+            JsonArray jsonArray = docBattery["VPACK"].as<JsonArray>();
+            int arrSize = jsonArray.size();
+            // Serial.println("Arr Size = " + String(arrSize));
             if (arrSize >= 4)
             {
+                Serial.println("Vpack Reading Address : " + String(bid));
                 for (int i = 0; i < 4; i++)
                 {
                     vpack[i] = docBattery["VPACK"][i];
                     if (i != 0) // index 0 is for total vpack
                     {
                         cellData[startIndex].pack[i - 1] = vpack[i];
+                        Serial.println("Vpack " + String(i) + " = " + String(vpack[i]));
+                    }
+                    else
+                    {
+                        Serial.println("Vpack Total = " + String(vpack[i]));
                     }
                 }
                 isAllDataCaptured = true;
             }
             
         }
+        else
+        {
+            isValidJsonFormat = true;
+            return status;
+        }
     }
-    int len = sizeof(vpack) / sizeof(vpack[0]);
-    String t = arrToStr<int32_t>(vpack, len);
-    Serial.println("VPACK" + String(id));
-    Serial.println(t);
+    
 
     if (isAllDataCaptured)
     {
@@ -458,8 +503,8 @@ void Vpack(int id)
             ledColor.r = 0;
             ledColor.g = 200;
             ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(id, id, ledColor);
-            Serial2.print(output);
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
         }
         else
         {
@@ -468,10 +513,10 @@ void Vpack(int id)
             ledColor.r = 200;
             ledColor.g = 0;
             ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(id, id, ledColor);
-            Serial2.print(output);
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
         }
-        
+        status = 1;
         /*
         String Link;
         HTTPClient http;
@@ -497,13 +542,150 @@ void Vpack(int id)
         ledColor.r = 127;
         ledColor.g = 127;
         ledColor.b = 0;
-        String output = rmsManager.createJsonLedRequest(id, id, ledColor);
-        Serial2.print(output);
+        String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+        Serial2.println(output);
     }
+    return status;
+}
 
+int readLed(String input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    int status = 0;
+    bool isAllDataCaptured = false;
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
+    DynamicJsonDocument docBattery(1024);
+    DeserializationError error = deserializeJson(docBattery, input);
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
+    JsonObject object = docBattery.as<JsonObject>();
+    // Serial.println(jsonDoc);
+    if (!object.isNull())
+    {
+        if (docBattery.containsKey("LEDSET"))
+        {
+            status = docBattery["STATUS"];
+        }
+    }
+    return status;
+}
+
+int readCMSInfo(String input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    int status = 0;
+    bool isAllDataCaptured = false;
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
+    DynamicJsonDocument docBattery(1024);
+    DeserializationError error = deserializeJson(docBattery, input);
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
+    JsonObject object = docBattery.as<JsonObject>();
+    // Serial.println(jsonDoc);
+    if (!object.isNull())
+    {
+        // Serial.println("Processing RMS info Request");
+        if(docBattery.containsKey("bid"))
+        {
+            bid = docBattery["bid"];
+            startIndex = bid - 1;
+        }
+        else
+        {
+            return status;
+        }
+
+        if (docBattery.containsKey("p_code"))
+        {
+            // Serial.println("Writing Info to Local Storage");
+            cmsInfo[startIndex].bid = bid;
+            cmsInfo[startIndex].p_code = docBattery["p_code"].as<String>();
+            cmsInfo[startIndex].ver = docBattery["ver"].as<String>();
+            cmsInfo[startIndex].chip = docBattery["chip"].as<String>();
+            status = 1;
+        }
+        else
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
+
+
+int sendVcellRequest(int bid)
+{
+    int led = bid - 1;
+    // Serial.println("Request Vcell Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createJsonVcellDataRequest(bid);
+    Serial2.println(output);
+    // Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
-    delay(10);
+    // Serial.println("End Of Vcell Request");
+    return 1;
+}
+
+int sendTempRequest(int bid)
+{
+    int led = bid - 1;
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createJsonTempDataRequest(bid);
+    Serial2.println(output);
+    // Serial.println(output);
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendVpackRequest(int bid)
+{
+    int led = bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createJsonVpackDataRequest(bid);
+    Serial2.println(output);
+    // Serial.println(output);
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendCMSInfoRequest(int bid)
+{
+    int led = bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSInfoRequest(bid);
+    Serial2.println(output);
+    // Serial.println(output);
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
 }
 
 void performAlarm()
@@ -516,7 +698,7 @@ void performAlarm()
             // docBattery["SBQ"] = a;
             // DynamicJsonDocument docBattery(768);
             String output = rmsManager.createShutDownRequest(i, a);
-            Serial2.print(output);
+            Serial2.println(output);
             // serializeJson(docBattery, Serial2);
         }
     }
@@ -540,37 +722,17 @@ void performAddressing()
         Serial.println(x);
         Serial.print("EHUB Number -> BMS === ");
         Serial.println(bid);
+        String output;
         docBattery["BID"] = bid;
         docBattery["SR"] = x;
-        serializeJson(docBattery, Serial2);
+        // serializeJson(docBattery, Serial2);
+        serializeJson(docBattery, output);
+        Serial2.print(output);
+        Serial2.print('\n');
         Serial.println("===============xxxxxxxxx===========");
         delay(100);
         sr.set(x, LOW);
         delay(100);
-    }
-    // if (i == (numOfShiftRegister - 1)) //if it is the last register (finished)
-    // {
-    //     docBattery["id"] = "Serial";
-    //     serializeJson(docBattery, Serial2);
-    //     Serial2.println("Hasil Respon = " + String(a));
-    //     delay(500);
-    //     //        goto menu2;
-    //     goto menu2;
-    // }
-}
-
-void performDataCollection()
-{
-    Serial.println("SEND DATA");
-    leds[8] = CRGB(150, 120, 1);
-    FastLED.show();
-    delay(300);
-    for (int i = 1; i <= 7; i++)
-    {
-        Temp(i);
-        vcell(i);
-        Vpack(i);
-        getDeviceStatus(i);
     }
 }
 
@@ -594,12 +756,58 @@ String parseconfig(String url)
     return payload;
 }
 
+void evalCommand(String input)
+{
+    if (input == "readcell")
+    {
+        sendVcellRequest(1);
+    }
+    else if (input == "readtemp")
+    {
+        sendTempRequest(1);
+    }
+    else if (input == "readvpack")
+    {
+        sendVpackRequest(1);
+    }
+}
+
+int sendRequest(int bid, int sequence)
+{
+    int status = 0;
+    switch(sequence) {
+    case 0:
+        sendVcellRequest(bid);
+        status = 1;
+        break;
+    case 1:
+        sendTempRequest(bid);
+        status = 1;
+        break;
+    case 2:
+        sendVpackRequest(bid);
+        status = 1;
+        break;  
+    case 3:
+        sendCMSInfoRequest(bid);
+        status = 1;
+        break;   
+    }
+    return status;
+}
+
+int checkResponse(String input)
+{
+    return (readVcell(input) || readTemp(input) || readVpack(input) || readCMSInfo(input));    
+}
+
 void setup()
 {
     pinMode(relay[0], OUTPUT);
     pinMode(relay[1], OUTPUT);
     pinMode(buzzer, OUTPUT);
     Serial.begin(9600);
+    Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
     WiFi.hostname("esp32");
@@ -653,6 +861,7 @@ void setup()
         size_t cmsInfoArrSize = sizeof(cmsInfo) / sizeof(cmsInfo[0]);
         // Serial.println(cmsInfoArrSize);
         String jsonOutput = jsonManager.buildJsonCMSInfo(cmsInfo, cmsInfoArrSize);
+        Serial.println(jsonOutput);
         request->send(200, "application/json", jsonOutput); });
 
     server.on("/get-balancing-status", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -783,45 +992,140 @@ void loop()
 
     int qty;
 
+    if(Serial.available())
+    {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r')
+        {
+            while (Serial.available())
+            {
+                Serial.read();
+            }
+            
+            commandCompleted = true;
+        }
+        else
+        {
+            commandString += c;
+        }
+    }
+
+    if (Serial2.available())
+    {
+        char c = Serial2.read();
+        if (c == '\n' || c == '\r')
+        {
+            responseCompleted = true;
+        }
+        else
+        {
+            responseString += c;
+        }
+        lastTime = millis();
+    }
+
+    // if (commandCompleted)
+    // {
+    //     Serial.println(commandString);
+    //     evalCommand(commandString);
+    //     commandCompleted = false;
+    //     commandString = "";
+    // }
+    
+    if (commandSequence >= 3)
+    {
+        
+        commandSequence = 0;
+        deviceAddress++;
+    }
+    if (deviceAddress >= 9)
+    {
+        deviceAddress = 1;
+        commandSequence = 0;
+    }
+
+    if (responseCompleted)
+    {
+        Serial.println(responseString);
+        checkResponse(responseString);
+        // if (evalResponse(responseString))
+        // {
+        //     commandSequence++;
+        //     sendCommand = true;
+        //     lastTime = millis();
+        // }
+        responseCompleted = false;
+        responseString = "";
+    }
+
     if (addressingCommand.exec)
     {
         // perform addressing
+        dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
         performAddressing();
         addressingCommand.exec = 0;
+        sendCommand = true;
         Serial.println("Addressing Finished");
+        isGotCMSInfo = false;
+        lastTime = millis();
     }
     else
     {
         if(dataCollectionCommand.exec)
         {
-            //perform data collection
-            if (address > 8)
+            if (sendCommand)
             {
-                address = 1;
+                if (isGotCMSInfo)
+                {
+                    sendRequest(deviceAddress, commandSequence);
+                }
+                else
+                {
+                    sendRequest(deviceAddress, 3);
+                    if (deviceAddress >= 8)
+                    {
+                        isGotCMSInfo = true;
+                    }
+                }
+                sendCommand = false;
+                lastTime = millis();
             }
-            Serial.println("Data Collection Address : " + String(address));
-            // Temp(address);
-            vcell(address);
-            // Vpack(address);
-            // address++;
-            Serial.println("Data Collection Finished");
+
+            // retry send a command
+            if (millis() - lastTime > 200)
+            {
+                // evalCommand(circularCommand[counter]);
+                // Serial.println("TIMEOUT");
+                if (isGotCMSInfo)
+                {
+                    commandSequence++;
+                } 
+                else
+                {
+                    deviceAddress++;
+                }               
+                sendCommand = true;
+                lastTime = millis();
+            }
         }
-        if(balancingCommand)
+        else if(balancingCommand)
         {
             //perform balancing
         }
-        if(alarmCommand.exec)
+        else if(alarmCommand.exec)
         {
             //perform alarm
         }
-        if(sleepCommand.exec)
+        else if(sleepCommand.exec)
         {
             //perform sleep
+            sendCommand = true;
             dataCollectionCommand.exec = 0;
             balancingCommand = 0;
             alarmCommand.exec = 0;
         }
     }
 
+    // delay(100);
 } // void loop end

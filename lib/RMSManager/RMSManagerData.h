@@ -1,10 +1,10 @@
 #include <Arduino.h>
 
-enum JsonRequestType {
-    vcellRequest,
-    tempRequest,
-    vpackRequest,
-    balancingRequest,
+enum ReadResponseType {
+    error,
+    vcellResponse,
+    vpackResponse,
+    tempResponse
 };
 
 struct LedColor {
