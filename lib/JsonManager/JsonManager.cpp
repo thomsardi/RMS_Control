@@ -9,11 +9,12 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
 {
     String result;
     DynamicJsonDocument doc(12288); //for 8 object
-    JsonArray cms = doc.createNestedArray("cms");
+    JsonArray cms = doc.createNestedArray("cms_data");
     
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_0 = cms.createNestedObject();
+        cms_0["frame_name"] = cellData[i].frameName;
         cms_0["bid"] = cellData[i].bid;
         JsonArray vcell = cms_0.createNestedArray("vcell");
         for ( int j = 0; j < 45; j++)
@@ -39,11 +40,12 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
 String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
 {
     String result;
-    StaticJsonDocument<128> doc;
+    DynamicJsonDocument doc(256);
     doc["p_code"] = rmsInfo.p_code;
     doc["ver"] = rmsInfo.ver;
     doc["ip"] = rmsInfo.ip;
     doc["mac"] = rmsInfo.mac;
+    doc["dev_type"] = rmsInfo.deviceTypeName;
     serializeJson(doc, result);
     return result;
 }
@@ -56,6 +58,7 @@ String JsonManager::buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonOb
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_info_0 = cms_info.createNestedObject();
+        cms_info_0["frame_name"] = cmsInfo[i].frameName;
         cms_info_0["bid"] = cmsInfo[i].bid;
         cms_info_0["p_code"] = cmsInfo[i].p_code;
         cms_info_0["ver"] = cmsInfo[i].ver;
@@ -156,9 +159,9 @@ int JsonManager::jsonAddressingCommandParser(const char* jsonInput)
     return command;
 }
 
-int JsonManager::jsonAlarmCommandParser(const char* jsonInput)
+int JsonManager::jsonAlarmCommandParser(const char* jsonInput, AlarmCommand &alarmCommand)
 {
-    int command = 0;
+    int status = -1;
     StaticJsonDocument<128> doc;
     DeserializationError error = deserializeJson(doc, jsonInput);
     if (error) 
@@ -167,12 +170,21 @@ int JsonManager::jsonAlarmCommandParser(const char* jsonInput)
         Serial.println(error.c_str());
         return -1;
     }
-    if (!doc.containsKey("alarm")) 
+
+    JsonObject alarm = doc["alarm"];
+    if (!alarm.isNull())
     {
-        return -1;
+        if (doc.containsKey("alarm"))
+        {
+            alarmCommand.buzzer = alarm["buzzer"]; // 1
+            alarmCommand.powerRelay = alarm["power_relay"]; // 1
+            alarmCommand.battRelay = alarm["batt_relay"]; // 1
+            status = 1;
+        }
+        
     }
-    command = doc["alarm"].as<signed int>();
-    return command;
+    
+    return status;
 }
 
 int JsonManager::jsonDataCollectionCommandParser(const char* jsonInput)
@@ -237,5 +249,43 @@ int JsonManager::jsonSleepCommandParser(const char* jsonInput)
     }
 
     command = doc["sleep"].as<signed int>(); // 0
+    return command;
+}
+
+int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite)
+{
+    int command = 0;
+    int bid = 0;
+    int startIndex = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        frameWrite.bid = bid;
+        startIndex = bid -1;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("frame_write")) 
+    {
+        return -1;
+    }
+
+    frameWrite.write = doc["frame_write"]; // 1
+    if (frameWrite.write)
+    {
+        frameWrite.frameName = doc["frame_name"].as<String>();
+        command = frameWrite.write;
+    }
     return command;
 }

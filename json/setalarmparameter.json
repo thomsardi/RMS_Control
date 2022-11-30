@@ -1,0 +1,6 @@
+{
+    "vcell_max": 3500,
+    "vcell_min": 2600,
+    "temp_max": 100000,
+    "temp_min": 20000
+}

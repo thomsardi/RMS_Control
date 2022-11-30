@@ -2,6 +2,7 @@
 
 struct CellData
 {
+    String frameName = "unspecified";
     int bid = 0;
     int vcell[45] = {0};
     int32_t temp[9] = {0};
@@ -15,10 +16,12 @@ struct RMSInfo
     String ver = "";
     String ip = "";
     String mac = "";
+    String deviceTypeName = "";
 };
 
 struct CMSInfo
 {
+    String frameName = "unspecified";
     int bid = 0;
     String p_code = "";
     String ver = "";
@@ -71,7 +74,9 @@ struct AddressingCommand
 
 struct AlarmCommand
 {
-    int exec = 0;
+    int buzzer = 0;
+    int powerRelay = 0;
+    int battRelay = 0;
 };
 
 struct DataCollectionCommand
@@ -82,4 +87,11 @@ struct DataCollectionCommand
 struct SleepCommand
 {
     int exec = 0;
+};
+
+struct FrameWrite
+{
+    int bid = 0;
+    int write = 0;
+    String frameName = "";
 };

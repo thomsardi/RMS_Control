@@ -1,0 +1,7 @@
+{
+    "alarm": {
+        "buzzer": 1,
+        "power_relay": 1,
+        "batt_relay": 1
+    }
+}

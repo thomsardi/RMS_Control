@@ -28,10 +28,11 @@ class JsonManager {
         // POST method (write the data)
         int jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand cellBalancingCommand[]); // set balancing command for each cell
         int jsonAddressingCommandParser(const char* jsonInput); // set addressing command
-        int jsonAlarmCommandParser(const char* jsonInput); // set alarm command
+        int jsonAlarmCommandParser(const char* jsonInput, AlarmCommand &alarmCommand); // set alarm command
         int jsonDataCollectionCommandParser(const char* jsonInput); // set data collection command
         int jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam); // set alarm parameter
         int jsonSleepCommandParser(const char* jsonInput); // set sleep command
+        int jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite);
     private :
 };
 
