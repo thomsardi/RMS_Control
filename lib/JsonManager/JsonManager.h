@@ -26,14 +26,16 @@ class JsonManager {
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)
 
         // POST method (write the data)
-        int jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand cellBalancingCommand[]); // set balancing command for each cell
+        int jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand &cellBalancingCommand); // set balancing command for each cell
         int jsonAddressingCommandParser(const char* jsonInput); // set addressing command
         int jsonAlarmCommandParser(const char* jsonInput, AlarmCommand &alarmCommand); // set alarm command
         int jsonDataCollectionCommandParser(const char* jsonInput); // set data collection command
         int jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam); // set alarm parameter
         int jsonSleepCommandParser(const char* jsonInput); // set sleep command
         int jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite);
+        int jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[]);
     private :
+        int getBit(int pos, int data);
 };
 
 

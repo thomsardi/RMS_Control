@@ -112,9 +112,12 @@ String JsonManager::buildJsonCommandStatus(const CommandStatus& commandStatus)
     return result;
 }
 
-int JsonManager::jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand cellBalancingCommand[])
+int JsonManager::jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand &cellBalancingCommand)
 {
-    DynamicJsonDocument doc(8192);
+    int status = 0;
+    int bid = 0;
+    int startIndex = 0;
+    DynamicJsonDocument doc(1024);
     DeserializationError error = deserializeJson(doc, jsonInput);
     if (error) 
     {
@@ -122,23 +125,41 @@ int JsonManager::jsonBalancingCommandParser(const char* jsonInput, CellBalancing
         Serial.println(error.c_str());
         return -1;
     }
-    JsonArray jsonArray = doc["balancing_command"].as<JsonArray>();
-    if (jsonArray.isNull())
+
+    JsonObject balancing_command = doc["balancing_command"];
+    
+    if (balancing_command.isNull())
     {
         return -1;
     }
-    for (JsonObject balancing_command_item : doc["balancing_command"].as<JsonArray>()) {
-        int balancing_command_item_bid = balancing_command_item["bid"];
-        int bidArrayIndex = balancing_command_item_bid - 1; // array start from index 0, while the bid start from 1
-        cellBalancingCommand[bidArrayIndex].bid = balancing_command_item_bid;
-        JsonArray balancing_command_item_cball = balancing_command_item["cball"];
-        int index = 0;
-        for (int bal : balancing_command_item_cball) {
-            cellBalancingCommand[bidArrayIndex].cball[index] = bal;
-            index++; 
+
+    if(balancing_command.containsKey("bid"))
+    {
+        bid = balancing_command["bid"];
+        cellBalancingCommand.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+
+    if(balancing_command.containsKey("sbal"))
+    {
+        status = balancing_command["sbal"];
+        cellBalancingCommand.sbal = status;
+        JsonArray balancing_command_cball = balancing_command["cball"];
+        int arrSize = balancing_command_cball.size();
+        for (size_t i = 0; i < arrSize; i++)
+        {
+            cellBalancingCommand.cball[i] = balancing_command_cball[i];
         }
     }
-    return 1;
+    else
+    {
+        return -1;
+    }
+
+    return status;
 }
 
 int JsonManager::jsonAddressingCommandParser(const char* jsonInput)
@@ -288,4 +309,94 @@ int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrit
         command = frameWrite.write;
     }
     return command;
+}
+
+int JsonManager::jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[])
+{
+    int bid = 0;
+    int startIndex = 0;
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("BID"))
+    {
+        bid = doc["BID"];
+        startIndex = bid - 1;
+    }
+    else
+    {
+        return -1;
+    }
+
+    if (!(doc.containsKey("RBAL1.1") && doc.containsKey("RBAL2.1") && doc.containsKey("RBAL3.1")))
+    {
+        return -1;
+    }
+
+    int rbal[3];
+    rbal[0] = doc["RBAL1.1"];
+    rbal[1] = doc["RBAL1.2"];
+    rbal[2] = doc["RBAL1.3"];
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i] = getBit(i, rbal[0]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+5] = getBit(i, rbal[1]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+10] = getBit(i, rbal[2]);
+    }
+
+    rbal[0] = doc["RBAL2.1"];
+    rbal[1] = doc["RBAL2.2"];
+    rbal[2] = doc["RBAL2.3"];
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+15] = getBit(i, rbal[0]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+20] = getBit(i, rbal[1]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+25] = getBit(i, rbal[2]);
+    }
+
+    rbal[0] = doc["RBAL3.1"];
+    rbal[1] = doc["RBAL3.2"];
+    rbal[2] = doc["RBAL3.3"];
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+30] = getBit(i, rbal[0]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+35] = getBit(i, rbal[1]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+40] = getBit(i, rbal[2]);
+    }
+    return 1;
+}
+
+int JsonManager::getBit(int pos, int data)
+{
+  if (pos > 7 & pos < 0)
+  {
+    return -1;
+  }
+  int temp = data >> pos;
+  temp = temp & 0x01;
+  return temp;
 }

@@ -40,11 +40,13 @@ int buzzer = 19;
 
 int const numOfShiftRegister = 8;
 int address = 1; //BID start from 1
+int timeout = 0;
 
 ShiftRegister74HC595<numOfShiftRegister> sr(12, 14, 13);
 DynamicJsonDocument docBattery(1024);
 CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
+// const char *ssid = "abcde";
 const char *password = "sundaya22";
 const char *host = "192.168.2.174";
 
@@ -57,7 +59,7 @@ RMSInfo rmsInfo;
 CMSInfo cmsInfo[8];
 AlarmParam alarmParam;
 CellAlarm cellAlarm[45];
-CellBalancingCommand cellBalancingCommand[8];
+CellBalancingCommand cellBalancingCommand;
 AddressingCommand addressingCommand;
 AlarmCommand alarmCommand;
 SleepCommand sleepCommand;
@@ -73,6 +75,9 @@ bool isFirstRun = true;
 bool sendCommand = true;
 bool isGotCMSInfo = false;
 bool flasher = true;
+bool lastStateDataCollection = false;
+bool lastFrameWrite = false;
+bool lastCellBalancingSball = false;
 int commandSequence = 0;
 int deviceAddress = 1;
 int cmsInfoRetry = 0;
@@ -224,6 +229,10 @@ int readVcell(String input)
             return status;
         }
     }
+    else
+    {
+        return status;
+    }
     
 
     if (isAllDataCaptured)
@@ -287,13 +296,16 @@ int readVcell(String input)
     }
     else
     {
-        Serial.println("Cannot Capture Vcell Data");
-        LedColor ledColor;
-        ledColor.r = 127;
-        ledColor.g = 127;
-        ledColor.b = 0;
-        String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
-        Serial2.println(output);
+        if(isValidJsonFormat)
+        {
+            Serial.println("Cannot Capture Vcell Data");
+            LedColor ledColor;
+            ledColor.r = 127;
+            ledColor.g = 127;
+            ledColor.b = 0;
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
+        }
     }
     return status;
 }
@@ -346,10 +358,14 @@ int readTemp(String input)
         }
         else
         {
-            bool isValidJsonFormat = true;
+            isValidJsonFormat = false;
             return status;
         }
             
+    }
+    else
+    {
+        return status;
     }
     
     if (isAllDataCaptured)
@@ -415,13 +431,16 @@ int readTemp(String input)
     }
     else
     {
-        Serial.println("Cannot Capture Temperature Data");
-        LedColor ledColor;
-        ledColor.r = 127;
-        ledColor.g = 127;
-        ledColor.b = 0;
-        String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
-        Serial2.println(output);
+        if (isValidJsonFormat)
+        {
+            Serial.println("Cannot Capture Temperature Data");
+            LedColor ledColor;
+            ledColor.r = 127;
+            ledColor.g = 127;
+            ledColor.b = 0;
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
+        }
     }
     return status;
 }
@@ -481,9 +500,13 @@ int readVpack(String input)
         }
         else
         {
-            isValidJsonFormat = true;
+            isValidJsonFormat = false;
             return status;
         }
+    }
+    else
+    {
+        return status;
     }
     
 
@@ -540,16 +563,18 @@ int readVpack(String input)
         Serial.println("VPACK MASUK");
         */
     }
-
     else
     {
-        Serial.println("Cannot Capture Vpack Data");
-        LedColor ledColor;
-        ledColor.r = 127;
-        ledColor.g = 127;
-        ledColor.b = 0;
-        String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
-        Serial2.println(output);
+        if (isValidJsonFormat)
+        {
+            Serial.println("Cannot Capture Vpack Data");
+            LedColor ledColor;
+            ledColor.r = 127;
+            ledColor.g = 127;
+            ledColor.b = 0;
+            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            Serial2.println(output);
+        }
     }
     return status;
 }
@@ -663,6 +688,96 @@ int readCMSInfo(String input)
     return status;
 }
 
+int getBit(int pos, int data)
+{
+  if (pos > 7 & pos < 0)
+  {
+    return -1;
+  }
+  int temp = data >> pos;
+  temp = temp & 0x01;
+  return temp;
+}
+
+int readCMSBalancingResponse(String input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, input);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("BID"))
+    {
+        bid = doc["BID"];
+        startIndex = bid - 1;
+    }
+    else
+    {
+        return -1;
+    }
+
+    if (!(doc.containsKey("RBAL1.1") && doc.containsKey("RBAL2.1") && doc.containsKey("RBAL3.1")))
+    {
+        return -1;
+    }
+
+    int rbal[3];
+    rbal[0] = doc["RBAL1.1"];
+    rbal[1] = doc["RBAL1.2"];
+    rbal[2] = doc["RBAL1.3"];
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i] = getBit(i, rbal[0]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+5] = getBit(i, rbal[1]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+10] = getBit(i, rbal[2]);
+    }
+
+    rbal[0] = doc["RBAL2.1"];
+    rbal[1] = doc["RBAL2.2"];
+    rbal[2] = doc["RBAL2.3"];
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+15] = getBit(i, rbal[0]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+20] = getBit(i, rbal[1]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+25] = getBit(i, rbal[2]);
+    }
+
+    rbal[0] = doc["RBAL3.1"];
+    rbal[1] = doc["RBAL3.2"];
+    rbal[2] = doc["RBAL3.3"];
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+30] = getBit(i, rbal[0]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+35] = getBit(i, rbal[1]);
+    }
+    for (size_t i = 0; i < 5; i++)
+    {
+        cellBalancingStatus[startIndex].cball[i+40] = getBit(i, rbal[2]);
+    }
+    Serial.println("Balancing Read Success");
+    return 1;
+}
 
 
 int sendVcellRequest(int bid)
@@ -735,6 +850,21 @@ int sendCMSFrameWriteRequest(FrameWrite frameWrite)
     String output = rmsManager.createCMSFrameWriteIdRequest(frameWrite.bid, frameWrite.frameName);
     Serial2.println(output);
     // Serial.println(output);
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendBalancingWriteRequest(CellBalancingCommand cellBalancingCommand)
+{
+    int led = cellBalancingCommand.bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSWriteBalancingRequest(cellBalancingCommand.bid, cellBalancingCommand.cball);
+    Serial2.println(output);
+    Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
     return 1;
@@ -822,6 +952,18 @@ void evalCommand(String input)
     {
         sendVpackRequest(1);
     }
+    else if (input == "startdata")
+    {
+        dataCollectionCommand.exec = true;
+    }
+    else if (input == "stopdata")
+    {
+        dataCollectionCommand.exec = false;
+    }
+    else if (input == "startaddress")
+    {
+        addressingCommand.exec = true;
+    }
 }
 
 int sendRequest(int bid, int sequence)
@@ -848,13 +990,17 @@ int sendRequest(int bid, int sequence)
         sendCMSFrameWriteRequest(frameWrite);
         status = 1;
         break;
+    case 5:
+        sendBalancingWriteRequest(cellBalancingCommand);
+        status = 1;
+        break;
     }
     return status;
 }
 
 int checkResponse(String input)
 {
-    return (readVcell(input) || readTemp(input) || readVpack(input) || readCMSInfo(input) || readFrameWriteResponse(input));    
+    return (readVcell(input) || readTemp(input) || readVpack(input) || readCMSInfo(input) || readFrameWriteResponse(input) || readCMSBalancingResponse(input));    
 }
 
 void setup()
@@ -874,19 +1020,28 @@ void setup()
     // digitalWrite(buzzer, HIGH);
     // delay(500);
     // digitalWrite(buzzer, LOW);
-    while (WiFi.status() != WL_CONNECTED)
+    while(timeout < 50)
     {
-        Serial2.print(".");
-        Serial.print(".");
-        leds[9] = CRGB::Gold;
-        FastLED.setBrightness(1);
-        FastLED.show();
-        delay(100);
-        leds[9] = CRGB::GreenYellow;
-        FastLED.setBrightness(20);
-        FastLED.show();
-        delay(100);
-    }
+        Serial.println("Connecting..");
+        if (WiFi.status() != WL_CONNECTED)
+        {
+            Serial2.print(".");
+            Serial.print(".");
+            leds[9] = CRGB::Gold;
+            FastLED.setBrightness(1);
+            FastLED.show();
+            delay(100);
+            leds[9] = CRGB::GreenYellow;
+            FastLED.setBrightness(20);
+            FastLED.show();
+            delay(100);
+            timeout++;
+        }
+        else
+        {
+            break;
+        }
+    }    
     declareStruct();
     leds[9] = CRGB::LawnGreen;
     FastLED.setBrightness(20);
@@ -950,17 +1105,8 @@ void setup()
         )";
         String input = json.as<String>();
         int status = jsonManager.jsonBalancingCommandParser(input.c_str(), cellBalancingCommand);
-        size_t balancingCommandSize = sizeof(cellBalancingCommand) / sizeof(cellBalancingCommand[0]);
-        for (size_t i = 0; i < balancingCommandSize; i++)
-        {
-        cellBalancingStatus[i].bid = cellBalancingCommand[i].bid;
-        for (size_t j = 0; j < 45; j++)
-        {
-            cellBalancingStatus[i].cball[j] = cellBalancingCommand[i].cball[j];
-        } 
-        }
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response);}, 8192);
+        request->send(200, "application/json", response);});
 
     AsyncCallbackJsonWebHandler *setAddressHandler = new AsyncCallbackJsonWebHandler("/set-addressing", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -1114,13 +1260,13 @@ void loop()
         // lastTime = millis();
     }
 
-    // if (commandCompleted)
-    // {
-    //     Serial.println(commandString);
-    //     evalCommand(commandString);
-    //     commandCompleted = false;
-    //     commandString = "";
-    // }
+    if (commandCompleted)
+    {
+        Serial.println(commandString);
+        evalCommand(commandString);
+        commandCompleted = false;
+        commandString = "";
+    }
     
     if (commandSequence >= 3)
     {
@@ -1164,12 +1310,38 @@ void loop()
     {       
         if (frameWrite.write)
         {
+            dataCollectionCommand.exec = false;
+            if (lastFrameWrite != frameWrite.write) //check if there is command to write frame
+            {
+                lastFrameWrite = frameWrite.write;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
+            }
+
             if (!Serial2.available())
             {
                 sendRequest(frameWrite.bid, 4);
                 frameWrite.write = false;
+                lastFrameWrite = false;
+                dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+            }         
+        }
+
+        if (cellBalancingCommand.sbal)
+        {
+            Serial.println("Do Balancing");
+            dataCollectionCommand.exec = false;
+            if (lastCellBalancingSball != cellBalancingCommand.sbal) //check if there is command to write balancing
+            {
+                lastCellBalancingSball = cellBalancingCommand.sbal;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
             }
-            dataCollectionCommand.exec = false;         
+            if (!Serial2.available())
+            {
+                sendRequest(cellBalancingCommand.bid, 5);
+                cellBalancingCommand.sbal = false;
+                lastCellBalancingSball = false;
+                dataCollectionCommand.exec = lastStateDataCollection;
+            }
         }
         
         if(dataCollectionCommand.exec)

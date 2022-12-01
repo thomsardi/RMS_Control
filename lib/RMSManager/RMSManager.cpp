@@ -79,3 +79,18 @@ String RMSManager::createCMSFrameWriteIdRequest(uint8_t bid, String frameName)
     serializeJson(doc, output);
     return output;
 }
+
+String RMSManager::createCMSWriteBalancingRequest(uint8_t bid, const int cellCommand[], size_t numOfCellCommand)
+{
+    String output;
+    DynamicJsonDocument doc(1024);
+    doc["BID"] = bid;
+    doc["SBAL"] = 1;
+    JsonArray cball = doc.createNestedArray("cball");
+    for (size_t i = 0; i < numOfCellCommand; i++)
+    {
+        cball.add(cellCommand[i]);
+    }
+    serializeJson(doc, output);
+    return output;
+}

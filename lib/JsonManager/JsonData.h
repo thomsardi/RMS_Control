@@ -56,6 +56,7 @@ struct CellBalancingStatus
 struct CellBalancingCommand
 {
     int bid = 0;
+    int sbal = 0;
     int cball[45] = {0};
 };
 
