@@ -35,12 +35,42 @@ String RMSManager::createJsonVpackDataRequest(uint8_t bid)
     return output;
 }
 
-String RMSManager::createShutDownRequest(uint8_t bid, uint8_t bqNum)
+String RMSManager::createCMSReadBalancingStatus(uint8_t bid)
 {
     String output;
     DynamicJsonDocument docBattery(1024);
     docBattery["BID"] = bid;
-    docBattery["SBQ"] = bqNum;
+    docBattery["RBAL"] = 1;
+    serializeJson(docBattery, output);
+    return output;
+}
+
+String RMSManager::createCMSStatusRequest(uint8_t bid)
+{
+    String output;
+    DynamicJsonDocument docBattery(1024);
+    docBattery["BID"] = bid;
+    docBattery["RBQ"] = 1;
+    serializeJson(docBattery, output);
+    return output;
+}
+
+String RMSManager::createShutDownRequest(uint8_t bid)
+{
+    String output;
+    DynamicJsonDocument docBattery(1024);
+    docBattery["BID"] = bid;
+    docBattery["SBQ"] = 1;
+    serializeJson(docBattery, output);
+    return output;
+}
+
+String RMSManager::createWakeupRequest(uint8_t bid)
+{
+    String output;
+    DynamicJsonDocument docBattery(1024);
+    docBattery["BID"] = bid;
+    docBattery["WBQ"] = 1;
     serializeJson(docBattery, output);
     return output;
 }

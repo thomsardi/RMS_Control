@@ -96,3 +96,15 @@ struct FrameWrite
     int write = 0;
     String frameName = "";
 };
+
+struct CMSShutDown
+{
+    int bid = 0;
+    int shutdown = 0;
+};
+
+struct CMSWakeup
+{
+    int bid = 0;
+    int wakeup = 0;
+};

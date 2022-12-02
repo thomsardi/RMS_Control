@@ -34,6 +34,8 @@ class JsonManager {
         int jsonSleepCommandParser(const char* jsonInput); // set sleep command
         int jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite);
         int jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[]);
+        int jsonCMSShutdownParser(const char* jsonInput, CMSShutDown &cmsShutdown);
+        int jsonCMSWakeupParser(const char* jsonInput, CMSWakeup &cmsWakeup);
     private :
         int getBit(int pos, int data);
 };

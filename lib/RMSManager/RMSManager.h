@@ -13,10 +13,13 @@ class RMSManager {
         String createJsonVpackDataRequest(uint8_t bid);
         String createCMSWriteBalancingRequest(uint8_t bid, const int cellCommand[], size_t numOfCellCommand = 45);
         String createJsonReadBalancingRequest(uint8_t bid);
-        String createShutDownRequest(uint8_t bid, uint8_t bqNum);
+        String createShutDownRequest(uint8_t bid);
+        String createWakeupRequest(uint8_t bid);
+        String createCMSStatusRequest(uint8_t bid);
         String createJsonLedRequest(uint8_t bid, uint8_t ledPosition, LedColor ledColor);
         String createCMSInfoRequest(uint8_t bid);
         String createCMSFrameWriteIdRequest(uint8_t bid, String frameId);
+        String createCMSReadBalancingStatus(uint8_t bid);
         // int sendVcellRequest(uint8_t bid);
         // int sendVpackRequest(uint8_t bid);
         // int sendTempRequest(uint8_t bid);

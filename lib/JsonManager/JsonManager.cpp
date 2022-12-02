@@ -31,7 +31,7 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
         {
             vpack.add(cellData[i].pack[k]);
         }
-        cms_0["sleep"] = cellData[i].status;
+        cms_0["wake_status"] = cellData[i].status;
     }
     serializeJson(doc, result);
     return result;
@@ -277,7 +277,6 @@ int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrit
 {
     int command = 0;
     int bid = 0;
-    int startIndex = 0;
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, jsonInput);
 
@@ -291,7 +290,6 @@ int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrit
     {
         bid = doc["bid"];
         frameWrite.bid = bid;
-        startIndex = bid -1;
     }
     else
     {
@@ -389,6 +387,70 @@ int JsonManager::jsonBalancingStatusParser(const char* jsonInput, CellBalancingS
     }
     return 1;
 }
+
+int JsonManager::jsonCMSShutdownParser(const char* jsonInput, CMSShutDown &cmsShutdown)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        cmsShutdown.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("shutdown")) 
+    {
+        return -1;
+    }
+
+    cmsShutdown.shutdown = doc["shutdown"]; // 1
+    command = cmsShutdown.shutdown;
+    return command;
+}
+
+int JsonManager::jsonCMSWakeupParser(const char* jsonInput, CMSWakeup &cmsWakeup)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        cmsWakeup.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("wakeup")) 
+    {
+        return -1;
+    }
+    cmsWakeup.wakeup = doc["wakeup"]; // 1
+    command = cmsWakeup.wakeup;
+    return command;
+}
+
 
 int JsonManager::getBit(int pos, int data)
 {

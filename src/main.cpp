@@ -67,6 +67,8 @@ DataCollectionCommand dataCollectionCommand;
 CellBalancingStatus cellBalancingStatus[8];
 CommandStatus commandStatus;
 FrameWrite frameWrite;
+CMSShutDown cmsShutDown;
+CMSWakeup cmsWakeup;
 
 bool balancingCommand = false;
 bool commandCompleted = false;
@@ -78,6 +80,8 @@ bool flasher = true;
 bool lastStateDataCollection = false;
 bool lastFrameWrite = false;
 bool lastCellBalancingSball = false;
+bool lastCMSShutdown = false;
+bool lastCMSWakeup = false;
 int commandSequence = 0;
 int deviceAddress = 1;
 int cmsInfoRetry = 0;
@@ -174,10 +178,10 @@ String arrToStr(T a[], int len)
     return b;
 }
 
-int readVcell(String input)
+int readVcell(const String &input)
 {
     int bid = 0;
-    int status = 0;
+    int status = -1;
     int led;
     int errTimeout;
     int startIndex; // bid start from 1, array index start from 0
@@ -186,6 +190,7 @@ int readVcell(String input)
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);    
+    // Serial.println("Read Vcell");
     if (error) 
     {
         Serial.print("deserializeJson() failed: ");
@@ -310,17 +315,17 @@ int readVcell(String input)
     return status;
 }
 
-int readTemp(String input)
+int readTemp(const String &input)
 {
     int bid = 0;
     int startIndex = 0;
-    int status = 0;
+    int status = -1;
     bool isAllDataCaptured = false;
     bool isAllDataNormal = true;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);
-
+    // Serial.println("Read Temp");
     if (error) 
     {
         Serial.print("deserializeJson() failed: ");
@@ -446,16 +451,17 @@ int readTemp(String input)
 }
 
 
-int readVpack(String input)
+int readVpack(const String &input)
 {
     int bid = 0;
     int startIndex = 0;
-    int status = 0;
+    int status = -1;
     bool isAllDataCaptured = false;
     bool isAllDataNormal = false;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Vpack");
     if (error) 
     {
         Serial.print("deserializeJson() failed: ");
@@ -579,16 +585,17 @@ int readVpack(String input)
     return status;
 }
 
-int readLed(String input)
+int readLed(const String &input)
 {
     int bid = 0;
     int startIndex = 0;
-    int status = 0;
+    int status = -1;
     bool isAllDataCaptured = false;
     bool isAllDataNormal = false;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Led Response");
     if (error) 
     {
         Serial.print("deserializeJson() failed: ");
@@ -608,16 +615,17 @@ int readLed(String input)
     return status;
 }
 
-int readFrameWriteResponse(String input)
+int readFrameWriteResponse(const String &input)
 {
     int bid = 0;
     int startIndex = 0;
-    int status = 0;
+    int status = -1;
     bool isAllDataCaptured = false;
     bool isAllDataNormal = false;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Frame Write Response");
     if (error) 
     {
         Serial.print("deserializeJson() failed: ");
@@ -637,16 +645,17 @@ int readFrameWriteResponse(String input)
     return status;
 }
 
-int readCMSInfo(String input)
+int readCMSInfo(const String &input)
 {
     int bid = 0;
     int startIndex = 0;
-    int status = 0;
+    int status = -1;
     bool isAllDataCaptured = false;
     bool isAllDataNormal = false;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read CMS Info");
     if (error) 
     {
         Serial.print("deserializeJson() failed: ");
@@ -699,32 +708,34 @@ int getBit(int pos, int data)
   return temp;
 }
 
-int readCMSBalancingResponse(String input)
+int readCMSBalancingResponse(const String &input)
 {
     int bid = 0;
+    int status = -1;
     int startIndex = 0;
     DynamicJsonDocument doc(512);
     DeserializationError error = deserializeJson(doc, input);
-
+    // Serial.println("Read CMS Balancing Response");
     if (error) {
         Serial.print("deserializeJson() failed: ");
         Serial.println(error.c_str());
-        return -1;
+        return status;
     }
 
     if (doc.containsKey("BID"))
     {
         bid = doc["BID"];
         startIndex = bid - 1;
+        cellBalancingStatus[startIndex].bid = bid;
     }
     else
     {
-        return -1;
+        return status;
     }
 
     if (!(doc.containsKey("RBAL1.1") && doc.containsKey("RBAL2.1") && doc.containsKey("RBAL3.1")))
     {
-        return -1;
+        return status;
     }
 
     int rbal[3];
@@ -775,8 +786,45 @@ int readCMSBalancingResponse(String input)
     {
         cellBalancingStatus[startIndex].cball[i+40] = getBit(i, rbal[2]);
     }
+    status = 1;
     Serial.println("Balancing Read Success");
-    return 1;
+    return status;
+}
+
+int readCMSBQStatusResponse(const String &input)
+{
+    int status = -1;
+    int bid = 0;
+    int startIndex = 0;
+    StaticJsonDocument<128> doc;
+    DeserializationError error = deserializeJson(doc, input);
+    // Serial.println("Read CMS BQ Status");
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+
+    if(!doc.containsKey("BID"))
+    {
+        // Serial.println("Does not contain BID");
+        return status;
+    }
+
+    if(!doc.containsKey("WAKE_STATUS"))
+    {
+        // Serial.println("Does not contain WAKE_STATUS");
+        return status;
+    }
+
+    // Serial.println("GET WAKE STATUS");
+    bid = doc["BID"];
+    startIndex = bid - 1;
+    status = doc["WAKE_STATUS"];
+    // Serial.println("WAKE STATUS = " + String(status));
+    cellData[startIndex].status = status;
+    Serial.println("Wake Status Read Success");
+    return status;
 }
 
 
@@ -818,6 +866,21 @@ int sendVpackRequest(int bid)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createJsonVpackDataRequest(bid);
+    Serial2.println(output);
+    // Serial.println(output);
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendCMSReadBalancingStatus(int bid)
+{
+    int led = bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSReadBalancingStatus(bid);
     Serial2.println(output);
     // Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
@@ -870,6 +933,27 @@ int sendBalancingWriteRequest(CellBalancingCommand cellBalancingCommand)
     return 1;
 }
 
+int sendCMSStatusRequest(int bid)
+{
+    String output = rmsManager.createCMSStatusRequest(bid);
+    Serial2.println(output);
+    return 1;
+}
+
+int sendCMSShutDownRequest(CMSShutDown cmsShutDown)
+{
+    String output = rmsManager.createShutDownRequest(cmsShutDown.bid);
+    Serial2.println(output);
+    return 1;
+}
+
+int sendCMSWakeupRequest(CMSWakeup cmsWakeup)
+{
+    String output = rmsManager.createWakeupRequest(cmsWakeup.bid);
+    Serial2.println(output);
+    return 1;
+}
+
 void performAlarm()
 {
      for (int i = 1; i <= 8; i++)
@@ -879,7 +963,7 @@ void performAlarm()
             // docBattery["BID"] = i;
             // docBattery["SBQ"] = a;
             // DynamicJsonDocument docBattery(768);
-            String output = rmsManager.createShutDownRequest(i, a);
+            String output = rmsManager.createShutDownRequest(i);
             Serial2.println(output);
             // serializeJson(docBattery, Serial2);
         }
@@ -888,6 +972,7 @@ void performAlarm()
 
 void getDeviceStatus(int id)
 {
+
 }
 
 void performAddressing()
@@ -983,24 +1068,68 @@ int sendRequest(int bid, int sequence)
         status = 1;
         break;  
     case 3:
-        sendCMSInfoRequest(bid);
+        sendCMSStatusRequest(bid);
         status = 1;
-        break;   
+        break;
     case 4:
-        sendCMSFrameWriteRequest(frameWrite);
+        sendCMSReadBalancingStatus(bid);
         status = 1;
         break;
     case 5:
+        sendCMSInfoRequest(bid);
+        status = 1;
+        break;   
+    case 6:
+        sendCMSFrameWriteRequest(frameWrite);
+        status = 1;
+        break;
+    case 7:
         sendBalancingWriteRequest(cellBalancingCommand);
         status = 1;
         break;
+    case 8:
+        sendCMSShutDownRequest(cmsShutDown);
+        status = 1;
+        break;  
+    case 9:
+        sendCMSWakeupRequest(cmsWakeup);
+        status = 1;
+        break;   
     }
     return status;
 }
 
-int checkResponse(String input)
+int checkResponse(const String &input)
 {
-    return (readVcell(input) || readTemp(input) || readVpack(input) || readCMSInfo(input) || readFrameWriteResponse(input) || readCMSBalancingResponse(input));    
+    if(readVcell(input) >= 0)
+    {
+        return 1;
+    }
+    else if (readTemp(input) >= 0)
+    {
+        return 1;
+    }
+    else if (readVpack(input) >= 0)
+    {
+        return 1;
+    }
+    else if (readCMSInfo(input) >= 0)
+    {
+        return 1;
+    }
+    else if (readFrameWriteResponse(input) >= 0)
+    {
+        return 1;
+    }
+    else if (readCMSBalancingResponse(input) >= 0)
+    {
+        return 1;
+    }
+    else if (readCMSBQStatusResponse(input) >= 0)
+    {
+        return 1;
+    }
+    return 1;
 }
 
 void setup()
@@ -1168,9 +1297,21 @@ void setup()
         }
         )";
         String input = json.as<String>();
-        int status = jsonManager.jsonSleepCommandParser(input.c_str());
-        sleepCommand.exec = status;
-        commandStatus.sleepCommand = status;
+        int status = jsonManager.jsonCMSShutdownParser(input.c_str(), cmsShutDown);
+        cmsShutDown.shutdown = status;
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
+    AsyncCallbackJsonWebHandler *setWakeupHandler = new AsyncCallbackJsonWebHandler("/set-wakeup", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonCMSWakeupParser(input.c_str(), cmsWakeup);
+        cmsWakeup.wakeup = status;
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
@@ -1192,6 +1333,7 @@ void setup()
     server.addHandler(setDataCollectionHandler);
     server.addHandler(setAlarmParamHandler);
     server.addHandler(setSleepHandler);
+    server.addHandler(setWakeupHandler);
     server.addHandler(setFrameHandler);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
@@ -1268,7 +1410,7 @@ void loop()
         commandString = "";
     }
     
-    if (commandSequence >= 3)
+    if (commandSequence >= 5)
     {
         
         commandSequence = 0;
@@ -1310,37 +1452,102 @@ void loop()
     {       
         if (frameWrite.write)
         {
-            dataCollectionCommand.exec = false;
+            Serial.println("Write Frame");
             if (lastFrameWrite != frameWrite.write) //check if there is command to write frame
             {
                 lastFrameWrite = frameWrite.write;
                 lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
             }
-
+            dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 1;
+            commandSequence = 0;
             if (!Serial2.available())
             {
-                sendRequest(frameWrite.bid, 4);
+                sendRequest(frameWrite.bid, 6);
+                sendCommand = false;
+                frameWrite.bid = 0;
                 frameWrite.write = false;
                 lastFrameWrite = false;
                 dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+                lastTime = millis();
             }         
         }
 
         if (cellBalancingCommand.sbal)
         {
             Serial.println("Do Balancing");
-            dataCollectionCommand.exec = false;
             if (lastCellBalancingSball != cellBalancingCommand.sbal) //check if there is command to write balancing
             {
                 lastCellBalancingSball = cellBalancingCommand.sbal;
                 lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
             }
+            dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 1;
+            commandSequence = 0;
             if (!Serial2.available())
             {
-                sendRequest(cellBalancingCommand.bid, 5);
+                sendRequest(cellBalancingCommand.bid, 7);
+                sendCommand = false;
+                cellBalancingCommand.bid = 0;
                 cellBalancingCommand.sbal = false;
                 lastCellBalancingSball = false;
                 dataCollectionCommand.exec = lastStateDataCollection;
+                lastTime = millis();
+            }
+        }
+
+        if (cmsShutDown.shutdown)
+        {
+            Serial.println("Shutdown CMS");
+            if(lastCMSShutdown != cmsShutDown.shutdown)
+            {
+                lastCMSShutdown = cmsShutDown.shutdown;
+                lastStateDataCollection = dataCollectionCommand.exec;
+            }
+            dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 1;
+            commandSequence = 0;
+
+            if (!Serial2.available())
+            {
+                sendRequest(cmsShutDown.bid, 8);
+                sendCommand = false;
+                cmsShutDown.bid = 0;
+                cmsShutDown.shutdown = false;
+                lastCMSShutdown = false;
+                dataCollectionCommand.exec = lastStateDataCollection;
+                lastTime = millis();
+            }
+        }
+
+        if (cmsWakeup.wakeup)
+        {
+            Serial.println("Wakeup CMS");
+            
+            if(lastCMSWakeup != cmsWakeup.wakeup)
+            {
+                lastCMSWakeup = cmsWakeup.wakeup;
+                lastStateDataCollection = dataCollectionCommand.exec;
+            }
+            
+            dataCollectionCommand.exec = false;
+
+            isGotCMSInfo = false;
+            deviceAddress = 1;
+            commandSequence = 0;
+            
+            if (!Serial2.available())
+            {
+                sendRequest(cmsWakeup.bid, 9);
+                sendCommand = false;
+                cmsWakeup.bid = 0;
+                cmsWakeup.wakeup = false;
+                lastCMSWakeup = false;
+                dataCollectionCommand.exec = lastStateDataCollection;
+                lastTime = millis();
             }
         }
         
@@ -1361,13 +1568,13 @@ void loop()
                 {
                     if(!Serial2.available())
                     {
-                        sendRequest(deviceAddress, 3);
+                        sendRequest(deviceAddress, 5);
                         lastTime = millis();
                         sendCommand = false;
                     }
                     if (deviceAddress >= 8)
                     {
-                        if (cmsInfoRetry >= 3)
+                        if (cmsInfoRetry >= 2)
                         {
                             isGotCMSInfo = true;
                             cmsInfoRetry = 0;
@@ -1405,19 +1612,6 @@ void loop()
             lastTime = millis();
         }
         
-        if(balancingCommand)
-        {
-            //perform balancing
-        }
-        
-        if(sleepCommand.exec)
-        {
-            //perform sleep
-            sendCommand = true;
-            dataCollectionCommand.exec = 0;
-            balancingCommand = 0;
-            // alarmCommand.exec = 0;
-        }
     }
 
     // delay(100);
