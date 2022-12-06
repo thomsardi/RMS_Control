@@ -91,8 +91,7 @@ String commandString;
 String responseString;
 String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-
-
+String serverName = "http://192.168.2.92/mydatabase/";
 
 void declareStruct()
 {
@@ -242,20 +241,19 @@ int readVcell(const String &input)
 
     if (isAllDataCaptured)
     {
-        /*
-        String Link;
+        docBattery["frame_name"] = cellData[startIndex].frameName;
+        String phpName = "updatecell.php";
+        String link = serverName + phpName;
         HTTPClient http;
-
-        Link = "http://192.168.2.174/rakbatterybiru/src/logic/bms_vcell_update.php?cell=" + String(a) + "," + String(c);
-        // http.begin(client, Link);
-        // http.GET();
-
-        //  String respon = http.getString();
-        //  Serial.println(respon);
-
-        // http.end();
+        http.begin(link);
+        http.addHeader("Content-Type", "application/json");
+        String httpPostData;
+        serializeJson(docBattery, httpPostData);
+        int httpResponseCode = http.POST(httpPostData);
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
         Serial.println("berhasil");
-        */
+        http.end();
 
         for (int c : cell)
         {
@@ -354,6 +352,7 @@ int readTemp(const String &input)
                 {
                     float storage = docBattery["TEMP"][i];
                     temp[i] = (int32_t) storage * 1000;
+                    docBattery["TEMP"][i] = temp[i];
                     cellData[startIndex].temp[i] = temp[i];
                     Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
                 }
@@ -376,6 +375,21 @@ int readTemp(const String &input)
     if (isAllDataCaptured)
     {
         
+        docBattery["frame_name"] = cellData[startIndex].frameName;
+        String phpName = "updatetemperature.php";
+        String link = serverName + phpName;
+        HTTPClient http;
+        http.begin(link);
+        http.addHeader("Content-Type", "application/json");
+        String httpPostData;
+        serializeJson(docBattery, httpPostData);
+        int httpResponseCode = http.POST(httpPostData);
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
+        Serial.println("berhasil");
+        http.end();
+        
+
         for (int32_t temperature : temp)
         {
             if (temperature > alarmParam.temp_max || temperature < alarmParam.temp_min)
@@ -518,6 +532,20 @@ int readVpack(const String &input)
 
     if (isAllDataCaptured)
     {
+        docBattery["frame_name"] = cellData[startIndex].frameName;
+        String phpName = "updatevpack.php";
+        String link = serverName + phpName;
+        HTTPClient http;
+        http.begin(link);
+        http.addHeader("Content-Type", "application/json");
+        String httpPostData;
+        serializeJson(docBattery, httpPostData);
+        int httpResponseCode = http.POST(httpPostData);
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
+        Serial.println("berhasil");
+        http.end();
+        
         for (int32_t vpackValue : vpack)
         {
             if (vpackValue > 0)
@@ -693,6 +721,18 @@ int readCMSInfo(const String &input)
         {
             return status;
         }
+        
+        String phpName = "createdatabase.php";
+        String link = serverName + phpName;
+        HTTPClient http;
+        http.begin(link);
+        http.addHeader("Content-Type", "application/json");
+        int httpResponseCode = http.POST(input);
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
+        Serial.println("berhasil");
+        http.end();
+        
     }
     return status;
 }
@@ -824,6 +864,21 @@ int readCMSBQStatusResponse(const String &input)
     // Serial.println("WAKE STATUS = " + String(status));
     cellData[startIndex].status = status;
     Serial.println("Wake Status Read Success");
+
+    doc["frame_name"] = cellData[startIndex].frameName;
+    String phpName = "updatewakestatus.php";
+    String link = serverName + phpName;
+    HTTPClient http;
+    http.begin(link);
+    http.addHeader("Content-Type", "application/json");
+    String httpPostData;
+    serializeJson(doc, httpPostData);
+    int httpResponseCode = http.POST(httpPostData);
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    Serial.println("berhasil");
+    http.end();
+
     return status;
 }
 
