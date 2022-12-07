@@ -20,7 +20,24 @@ if ($conn -> connect_errno) {
   echo "Failed to connect to MySQL: " . $conn -> connect_error;
   exit();
 }
-$sql_create_vcell = "CREATE TABLE vcell_$bid (
+
+$sql_create_bid = "CREATE TABLE `bid` (
+ `id` int(11) NOT NULL AUTO_INCREMENT,
+ `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+ `bid` int(11) NOT NULL,
+ PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+
+$query = "SHOW TABLES LIKE 'bid'";
+$result = mysqli_query($conn, $query);
+$tableExist = $result->num_rows;
+
+if($tableExist <= 0) {
+  $result = mysqli_query($conn, $sql_create_bid);
+  echo "Table Not Exist";
+}
+
+$sql_create_vcell = "CREATE TABLE `vcell` (
  `id` int(11) NOT NULL AUTO_INCREMENT,
  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
  `v1` int(11) NOT NULL,
@@ -71,7 +88,7 @@ $sql_create_vcell = "CREATE TABLE vcell_$bid (
  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
 
-$query = "SHOW TABLES LIKE '" . "vcell_$bid" . "'";
+$query = "SHOW TABLES LIKE 'vcell'";
 $result = mysqli_query($conn, $query);
 $tableExist = $result->num_rows;
 
@@ -80,7 +97,7 @@ if($tableExist <= 0) {
   echo "Table Not Exist";
 }
 
-$sql_create_temperature = "CREATE TABLE temperature_$bid (
+$sql_create_temperature = "CREATE TABLE `temperature` (
  `id` int(11) NOT NULL AUTO_INCREMENT,
  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
  `t1` int(11) NOT NULL,
@@ -95,7 +112,7 @@ $sql_create_temperature = "CREATE TABLE temperature_$bid (
  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
 
-$query = "SHOW TABLES LIKE '" . "temperature_$bid" . "'";
+$query = "SHOW TABLES LIKE 'temperature'";
 $result = mysqli_query($conn, $query);
 $tableExist = $result->num_rows;
 
@@ -104,7 +121,7 @@ if($tableExist <= 0) {
   echo "Table Not Exist";
 }
 
-$sql_create_vpack = "CREATE TABLE vpack_$bid (
+$sql_create_vpack = "CREATE TABLE `vpack` (
  `id` int(11) NOT NULL AUTO_INCREMENT,
  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
  `vp1` int(11) NOT NULL,
@@ -113,7 +130,7 @@ $sql_create_vpack = "CREATE TABLE vpack_$bid (
  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
 
-$query = "SHOW TABLES LIKE '" . "vpack_$bid" . "'";
+$query = "SHOW TABLES LIKE 'vpack'";
 $result = mysqli_query($conn, $query);
 $tableExist = $result->num_rows;
 
@@ -122,14 +139,14 @@ if($tableExist <= 0) {
   echo "Table Not Exist";
 }
 
-$sql_create_wake_status = "CREATE TABLE wake_status_$bid (
+$sql_create_wake_status = "CREATE TABLE `wake_status` (
  `id` int(11) NOT NULL AUTO_INCREMENT,
  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
  `wake_status` int(11) NOT NULL,
  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
 
-$query = "SHOW TABLES LIKE '" . "wake_status_$bid" . "'";
+$query = "SHOW TABLES LIKE 'wake_status'";
 $result = mysqli_query($conn, $query);
 $tableExist = $result->num_rows;
 

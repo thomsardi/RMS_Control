@@ -6,7 +6,7 @@ $data = json_decode($json);
 $frameName = $data->frame_name;
 $bid = $data->BID;
 $temperature = $data->TEMP;
-$tableName = "temperature_$bid";
+$tableName = "temperature";
 $column_list = "";
 $value_list = "";
 

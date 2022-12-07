@@ -6,7 +6,7 @@ $data = json_decode($json);
 $frameName = $data->frame_name;
 $bid = $data->BID;
 $vcell = $data->VCELL;
-$tableName = "vcell_$bid";
+$tableName = "vcell";
 $column_list = "";
 $value_list = "";
 
@@ -37,4 +37,17 @@ $result = mysqli_query($conn, $sql);
 if (!$result) {
 	echo mysql_error();
 }
+
+$tableName = "bid";
+$columns = "bid";
+$values = $bid;
+
+$sql = "INSERT INTO $tableName ($columns) VALUES ($values)";
+echo $sql;
+$result = mysqli_query($conn, $sql);
+
+if (!$result) {
+  echo mysql_error();
+}
+
 ?>

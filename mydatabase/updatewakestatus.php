@@ -6,7 +6,7 @@ $data = json_decode($json);
 $frameName = $data->frame_name;
 $bid = $data->BID;
 $wake_status = $data->WAKE_STATUS;
-$tableName = "wake_status_$bid";
+$tableName = "wake_status";
 $column_list = "wake_status";
 $value_list = $wake_status;
 

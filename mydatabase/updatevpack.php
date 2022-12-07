@@ -6,7 +6,7 @@ $data = json_decode($json);
 $frameName = $data->frame_name;
 $bid = $data->BID;
 $vpack = $data->VPACK;
-$tableName = "vpack_$bid";
+$tableName = "vpack";
 $column_list = "";
 $value_list = "";
 
