@@ -112,6 +112,28 @@ String JsonManager::buildJsonCommandStatus(const CommandStatus& commandStatus)
     return result;
 }
 
+String JsonManager::buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize)
+{
+    String result;
+    StaticJsonDocument<256> doc;
+    doc["num_of_device"] = arraySize;
+    JsonArray device_address_list = doc.createNestedArray("device_address_list");
+    if (arraySize != 0)
+    {
+        for(int i = 0; i < arraySize; i++)
+        {
+            device_address_list.add(addressingStatus.deviceAddressList[i]);
+        }
+    }
+    else
+    {
+        device_address_list.add(0);
+    }
+    doc["status"] = addressingStatus.status;
+    serializeJson(doc, result);
+    return result;
+}
+
 int JsonManager::jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand &cellBalancingCommand)
 {
     int status = 0;

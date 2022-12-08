@@ -88,11 +88,15 @@ bool lastFrameWrite = false;
 bool lastCellBalancingSball = false;
 bool lastCMSShutdown = false;
 bool lastCMSWakeup = false;
+bool lastIsGotCmsInfo = false;
+int isAddressingCompleted = 0;
 int commandSequence = 0;
 int deviceAddress = 1;
 int cmsInfoRetry = 0;
 unsigned long lastTime = 0;
 unsigned long lastBuzzer = 0;
+unsigned long lastReceivedSerialData = 0;
+unsigned long lastProcessResponse = 0;
 String commandString;
 String responseString;
 String globFrameName;
@@ -106,15 +110,15 @@ void declareStruct()
         cellData[i].bid = i + 100;
         for (size_t j = 0; j < 45; j++)
         {
-            cellData[i].vcell[j] = j * 100;
+            cellData[i].vcell[j] = -1;
         }
-        for (size_t j = 0; j < 6; j++)
+        for (size_t j = 0; j < 9; j++)
         {
-            cellData[i].temp[j] = j * 10;
+            cellData[i].temp[j] = -1;
         }
         for (size_t j = 0; j < 3; j++)
         {
-            cellData[i].pack[j] = j * 10000;
+            cellData[i].pack[j] = -1;
         }
         cellData[i].status = 0;
     }
@@ -141,10 +145,11 @@ void declareStruct()
 
     for (size_t i = 0; i < 8; i++)
     {
+        addressList.push_back(i+1);
         cellBalancingStatus[i].bid = i;
         for (size_t j = 0; j < 45; j++)
         {
-            cellBalancingStatus[i].cball[j] = j * 10;
+            cellBalancingStatus[i].cball[j] = -1;
         }
     }
 
@@ -247,22 +252,6 @@ int readVcell(const String &input)
 
     if (isAllDataCaptured)
     {
-        #ifdef AUTO_POST
-            docBattery["frame_name"] = cellData[startIndex].frameName;
-            String phpName = "updatecell.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            String httpPostData;
-            serializeJson(docBattery, httpPostData);
-            int httpResponseCode = http.POST(httpPostData);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            Serial.println("berhasil");
-            http.end();
-        #endif
-        
         for (int c : cell)
         {
             if (c <= 200) //ignore the unconnected cell
@@ -303,6 +292,23 @@ int readVcell(const String &input)
             String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
             Serial2.println(output);
         }
+
+        #ifdef AUTO_POST
+            docBattery["frame_name"] = cellData[startIndex].frameName;
+            String phpName = "updatecell.php";
+            String link = serverName + phpName;
+            HTTPClient http;
+            http.begin(link);
+            http.addHeader("Content-Type", "application/json");
+            String httpPostData;
+            serializeJson(docBattery, httpPostData);
+            int httpResponseCode = http.POST(httpPostData);
+            Serial.print("HTTP Response code: ");
+            Serial.println(httpResponseCode);
+            Serial.println("berhasil");
+            http.end();
+        #endif
+        
         status = 1;
     }
     else
@@ -382,24 +388,6 @@ int readTemp(const String &input)
     
     if (isAllDataCaptured)
     {
-        
-        #ifdef AUTO_POST
-            docBattery["frame_name"] = cellData[startIndex].frameName;
-            String phpName = "updatetemperature.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            String httpPostData;
-            serializeJson(docBattery, httpPostData);
-            int httpResponseCode = http.POST(httpPostData);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            Serial.println("berhasil");
-            http.end();
-        #endif
-        
-
         for (int32_t temperature : temp)
         {
             if (temperature > alarmParam.temp_max || temperature < alarmParam.temp_min)
@@ -434,6 +422,22 @@ int readTemp(const String &input)
             Serial2.println(output);
         }
         status = 1;
+
+        #ifdef AUTO_POST
+            docBattery["frame_name"] = cellData[startIndex].frameName;
+            String phpName = "updatetemperature.php";
+            String link = serverName + phpName;
+            HTTPClient http;
+            http.begin(link);
+            http.addHeader("Content-Type", "application/json");
+            String httpPostData;
+            serializeJson(docBattery, httpPostData);
+            int httpResponseCode = http.POST(httpPostData);
+            Serial.print("HTTP Response code: ");
+            Serial.println(httpResponseCode);
+            Serial.println("berhasil");
+            http.end();
+        #endif
         
         /*
         String Link;
@@ -541,25 +545,7 @@ int readVpack(const String &input)
     
 
     if (isAllDataCaptured)
-    {
-        
-        #ifdef AUTO_POST
-            docBattery["frame_name"] = cellData[startIndex].frameName;
-            String phpName = "updatevpack.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            String httpPostData;
-            serializeJson(docBattery, httpPostData);
-            int httpResponseCode = http.POST(httpPostData);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            Serial.println("berhasil");
-            http.end();
-        #endif
-        
-        
+    {       
         for (int32_t vpackValue : vpack)
         {
             if (vpackValue > 0)
@@ -594,6 +580,23 @@ int readVpack(const String &input)
             Serial2.println(output);
         }
         status = 1;
+
+        #ifdef AUTO_POST
+            docBattery["frame_name"] = cellData[startIndex].frameName;
+            String phpName = "updatevpack.php";
+            String link = serverName + phpName;
+            HTTPClient http;
+            http.begin(link);
+            http.addHeader("Content-Type", "application/json");
+            String httpPostData;
+            serializeJson(docBattery, httpPostData);
+            int httpResponseCode = http.POST(httpPostData);
+            Serial.print("HTTP Response code: ");
+            Serial.println(httpResponseCode);
+            Serial.println("berhasil");
+            http.end();
+        #endif
+
         /*
         String Link;
         HTTPClient http;
@@ -765,37 +768,35 @@ int readAddressing(const String &input)
     DeserializationError error = deserializeJson(doc, input);
 
     if (error) {
+        Serial.println("Read Addressing");
+        Serial.println(input);
         Serial.print("deserializeJson() failed: ");
         Serial.println(error.c_str());
-        return -1;
+        return status;
     }
 
     JsonObject object = doc.as<JsonObject>();
 
     if(!doc.isNull())
     {
-        if(doc.containsKey("BID"))
+        if(doc.containsKey("BID") && doc.containsKey("RESPON"))
         {
             bid = doc["BID"];
-        }
-
-        if(doc.containsKey("RESPON"))
-        {
             int respon = doc["RESPON"];
             if (respon > 0)
             {
                 addressList.push_back(bid);
-                for(int i = 0; i < addressList.size(); i++)
-                {
-                    Serial.println(addressList.at(i));
-                }
                 status = 1;
             }
+        }
+        else
+        {
+            return status;
         }
     }
     else
     {
-        return -1;
+        return status;
     }
     return status;
 }
@@ -1076,7 +1077,7 @@ int sendCMSWakeupRequest(CMSWakeup cmsWakeup)
 
 void performAlarm()
 {
-     for (int i = 1; i <= 8; i++)
+    for (int i = 1; i <= 8; i++)
     {
         for (int a = 1; a <= 3; a++)
         {
@@ -1097,6 +1098,8 @@ void getDeviceStatus(int id)
 
 void performAddressing()
 {
+    isAddressingCompleted = 0;
+    addressList.clear();
     DynamicJsonDocument docBattery(1024);
     for (int i = 0; i < numOfShiftRegister; i++)
     {
@@ -1121,6 +1124,7 @@ void performAddressing()
         sr.set(x, LOW);
         delay(100);
     }
+    isAddressingCompleted = 1;
 }
 
 String parseconfig(String url)
@@ -1305,7 +1309,7 @@ void setup()
     Serial.println(ssid);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-    declareStruct();
+    // declareStruct();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
 
@@ -1342,6 +1346,22 @@ void setup()
     server.on("/get-command-status", HTTP_GET, [](AsyncWebServerRequest *request)
     {
         String jsonOutput = jsonManager.buildJsonCommandStatus(commandStatus);
+        request->send(200, "application/json", jsonOutput); });
+
+    server.on("/get-addressing-status", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+        AddressingStatus addressingStatus;
+        addressingStatus.numOfDevice = addressList.size();
+        Serial.println("Number of Device : " + String(addressingStatus.numOfDevice));
+        for (int i = 0; i < addressList.size(); i++)
+        {
+            addressingStatus.deviceAddressList[i] = addressList.at(i);
+            Serial.println(addressingStatus.deviceAddressList[i]);
+
+        }
+        addressingStatus.status = isAddressingCompleted;
+        Serial.println("Addressing Completed Flag : " + String(addressingStatus.status));
+        String jsonOutput = jsonManager.buildJsonAddressingStatus(addressingStatus, addressList.size());
         request->send(200, "application/json", jsonOutput); });
 
     server.on("/post-test", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -1468,7 +1488,7 @@ void setup()
 
 void loop()
 {
-    int isAnyData = false;
+    int isRxBufferEmpty = false;
     int qty;
     if (alarmCommand.buzzer)
     {
@@ -1524,6 +1544,13 @@ void loop()
             responseString += c;
         }
         // lastTime = millis();
+        lastReceivedSerialData = millis();
+    }
+
+    if (millis() - lastReceivedSerialData > 50)
+    {
+        // Serial.println("No Serial 2 Data");
+        isRxBufferEmpty = true;
     }
 
     if (commandCompleted)
@@ -1548,7 +1575,7 @@ void loop()
     if (responseCompleted)
     {
         Serial.println(responseString);
-        isAnyData = checkResponse(responseString);
+        checkResponse(responseString);
         // if (evalResponse(responseString))
         // {
         //     commandSequence++;
@@ -1585,22 +1612,29 @@ void loop()
             isGotCMSInfo = false;
             deviceAddress = 0;
             commandSequence = 0;
-            if (!Serial2.available())
+            if (isRxBufferEmpty && !Serial2.available())
             {
-                if (dataCollectionCommand.exec == false)
+                if(sendCommand)
                 {
-                    sendRequest(frameWrite.bid, 6);
-                    sendCommand = false;
-                    frameWrite.bid = 0;
-                    frameWrite.write = false;
-                    lastFrameWrite = false;
-                    dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
-                    lastTime = millis();
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(frameWrite.bid, 6);
+                        sendCommand = false;
+                        frameWrite.bid = 0;
+                        frameWrite.write = false;
+                        lastFrameWrite = false;
+                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
                 }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
             }         
         }
 
@@ -1615,22 +1649,30 @@ void loop()
             isGotCMSInfo = false;
             deviceAddress = 0;
             commandSequence = 0;
-            if (!Serial2.available())
+            if (isRxBufferEmpty && !Serial2.available())
             {
-                if (dataCollectionCommand.exec == false)
+                if(sendCommand)
                 {
-                    sendRequest(cellBalancingCommand.bid, 7);
-                    sendCommand = false;
-                    cellBalancingCommand.bid = 0;
-                    cellBalancingCommand.sbal = false;
-                    lastCellBalancingSball = false;
-                    dataCollectionCommand.exec = lastStateDataCollection;
-                    lastTime = millis();
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(cellBalancingCommand.bid, 7);
+                        sendCommand = false;
+                        cellBalancingCommand.bid = 0;
+                        cellBalancingCommand.sbal = false;
+                        lastCellBalancingSball = false;
+                        dataCollectionCommand.exec = lastStateDataCollection;
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
                 }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
+                    
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
             }
         }
 
@@ -1647,22 +1689,29 @@ void loop()
             deviceAddress = 0;
             commandSequence = 0;
 
-            if (!Serial2.available())
+            if (isRxBufferEmpty && !Serial2.available())
             {
-                if(dataCollectionCommand.exec == false)
+                if(sendCommand)
                 {
-                    sendRequest(cmsShutDown.bid, 8);
-                    sendCommand = false;
-                    cmsShutDown.bid = 0;
-                    cmsShutDown.shutdown = false;
-                    lastCMSShutdown = false;
-                    dataCollectionCommand.exec = lastStateDataCollection;
-                    lastTime = millis();
+                    if(dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(cmsShutDown.bid, 8);
+                        sendCommand = false;
+                        cmsShutDown.bid = 0;
+                        cmsShutDown.shutdown = false;
+                        lastCMSShutdown = false;
+                        dataCollectionCommand.exec = lastStateDataCollection;
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
                 }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
             }
         }
 
@@ -1680,24 +1729,31 @@ void loop()
             deviceAddress = 0;
             commandSequence = 0;
             
-            if (!Serial2.available())
+            if (isRxBufferEmpty && !Serial2.available())
             {
-                if(dataCollectionCommand.exec == false)
+                if(sendCommand)
                 {
-                    sendRequest(cmsWakeup.bid, 9);
-                    sendCommand = false;
-                    cmsWakeup.bid = 0;
-                    cmsWakeup.wakeup = false;
-                    lastCMSWakeup = false;
-                    dataCollectionCommand.exec = lastStateDataCollection;
-                    lastTime = millis();
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-                    
+                    if(dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(cmsWakeup.bid, 9);
+                        sendCommand = false;
+                        cmsWakeup.bid = 0;
+                        cmsWakeup.wakeup = false;
+                        lastCMSWakeup = false;
+                        dataCollectionCommand.exec = lastStateDataCollection;
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }    
             }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }
+            
         }
         
         if(dataCollectionCommand.exec)
@@ -1708,11 +1764,8 @@ void loop()
                 {
                     if (isGotCMSInfo)
                     {
-                        if (!Serial2.available())
+                        if (isRxBufferEmpty && !Serial2.available())
                         {
-                            Serial.println("Device Address = " + String(deviceAddress));
-                            Serial.println("Address List = " + String(addressList.at(deviceAddress)));
-                            Serial.println("Command Sequence = " + String(commandSequence));
                             sendRequest(addressList.at(deviceAddress), commandSequence);
                             lastTime = millis();
                             sendCommand = false;
@@ -1720,23 +1773,31 @@ void loop()
                     }
                     else
                     {
-                        if(!Serial2.available())
+                        if(isRxBufferEmpty && !Serial2.available())
                         {
                             sendRequest(addressList.at(deviceAddress), 5);
-                            lastTime = millis();
                             sendCommand = false;
-                        }
-                        if (deviceAddress >= (addressList.size() - 1)) //check if deviceAddress is in the last index
-                        {
-                            if (cmsInfoRetry >= 2)
+                            if (deviceAddress >= (addressList.size() - 1)) //check if deviceAddress is in the last index
                             {
-                                isGotCMSInfo = true;
-                                cmsInfoRetry = 0;
-                                deviceAddress = 0;
-                                commandSequence = 0;
-                                lastTime = millis();
+                                if (cmsInfoRetry >= 2)
+                                {
+                                    isGotCMSInfo = true;
+                                    cmsInfoRetry = 0;
+                                    deviceAddress = 0;
+                                    // commandSequence = 0;
+                                    lastTime = millis();
+                                    // sendCommand = true;
+                                }
+                                else
+                                {
+                                    cmsInfoRetry++;
+                                }
                             }
-                            cmsInfoRetry++;
+                            lastTime = millis();
+                        }
+                        else
+                        {
+                            lastTime = millis();
                         }
                     }
                     
@@ -1747,14 +1808,22 @@ void loop()
                 {
                     if (millis() - lastTime > 100)
                     {
-                        if (isGotCMSInfo) //if got cms info, sequencing command
+                        if (lastIsGotCmsInfo != isGotCMSInfo) // check if the flow is after request info, to prevent increment the commandSequence
                         {
-                            commandSequence++;
-                        } 
-                        else
+                            lastIsGotCmsInfo = isGotCMSInfo;
+                        }
+                        else 
                         {
-                            commandSequence = 0;
-                            deviceAddress++; //used to retrieve cms info
+                            if (isGotCMSInfo) //if got cms info, sequencing command
+                            {
+                                // Serial.println("Send Command timeout!");
+                                commandSequence++;
+                            } 
+                            else
+                            {
+                                commandSequence = 0;
+                                deviceAddress++; //used to retrieve cms info
+                            }
                         }               
                         sendCommand = true;
                         lastTime = millis();
@@ -1769,6 +1838,7 @@ void loop()
             isGotCMSInfo = false;
             deviceAddress = 0;
             commandSequence = 0;
+            lastIsGotCmsInfo = false;
             lastTime = millis();
         }
         

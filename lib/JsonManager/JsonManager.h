@@ -24,6 +24,7 @@ class JsonManager {
         String buildJsonBalancingStatus(const CellBalancingStatus cellBalancingStatus[], size_t numOfJsonObject); //get 8 cms balancing status
         String buildJsonAlarmParameter(const AlarmParam& alarmParam); // get RMS alarm parameter
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)
+        String buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize);
 
         // POST method (write the data)
         int jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand &cellBalancingCommand); // set balancing command for each cell

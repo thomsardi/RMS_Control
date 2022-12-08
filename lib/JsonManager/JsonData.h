@@ -108,3 +108,10 @@ struct CMSWakeup
     int bid = 0;
     int wakeup = 0;
 };
+
+struct AddressingStatus
+{
+    int numOfDevice = 0;
+    int deviceAddressList[8] = {0};
+    int status = 0;
+};
