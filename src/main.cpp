@@ -25,7 +25,7 @@
 #define NUM_LEDS 10
 #define merah 202, 1, 9
 
-#define AUTO_POST 1 //comment to disable server auto post
+// #define AUTO_POST 1 //comment to disable server auto post
 
 int SET;
 int cell[45];
@@ -58,6 +58,7 @@ JsonManager jsonManager;
 RMSManager rmsManager;
 
 CellData cellData[8];
+CellData cellDataToSend;
 RMSInfo rmsInfo;
 CMSInfo cmsInfo[8];
 AlarmParam alarmParam;
@@ -72,6 +73,8 @@ CommandStatus commandStatus;
 FrameWrite frameWrite;
 CMSShutDown cmsShutDown;
 CMSWakeup cmsWakeup;
+
+int dataComplete = 0;
 
 int addressListStorage[12];
 Vector<int> addressList(addressListStorage);
@@ -92,6 +95,7 @@ bool lastIsGotCmsInfo = false;
 int isAddressingCompleted = 0;
 int commandSequence = 0;
 int deviceAddress = 1;
+int lastDeviceAddress = 16;
 int cmsInfoRetry = 0;
 unsigned long lastTime = 0;
 unsigned long lastBuzzer = 0;
@@ -101,7 +105,7 @@ String commandString;
 String responseString;
 String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-String serverName = "http://192.168.2.92/mydatabase/";
+String serverName = "http://192.168.2.174/mydatabase/";
 
 void declareStruct()
 {
@@ -190,7 +194,7 @@ String arrToStr(T a[], int len)
 
 int readVcell(const String &input)
 {
-    int bid = 0;
+    int bid = -1;
     int status = -1;
     int led;
     int errTimeout;
@@ -308,8 +312,8 @@ int readVcell(const String &input)
             Serial.println("berhasil");
             http.end();
         #endif
-        
-        status = 1;
+
+        status = bid;
     }
     else
     {
@@ -421,7 +425,7 @@ int readTemp(const String &input)
             String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
             Serial2.println(output);
         }
-        status = 1;
+        status = bid;
 
         #ifdef AUTO_POST
             docBattery["frame_name"] = cellData[startIndex].frameName;
@@ -579,7 +583,7 @@ int readVpack(const String &input)
             String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
             Serial2.println(output);
         }
-        status = 1;
+        status = bid;
 
         #ifdef AUTO_POST
             docBattery["frame_name"] = cellData[startIndex].frameName;
@@ -654,7 +658,8 @@ int readLed(const String &input)
     {
         if (docBattery.containsKey("LEDSET"))
         {
-            status = docBattery["STATUS"];
+            // status = docBattery["STATUS"];
+            status = 16;
         }
     }
     return status;
@@ -684,7 +689,8 @@ int readFrameWriteResponse(const String &input)
     {
         if (docBattery.containsKey("frame_write"))
         {
-            status = docBattery["status"];
+            // status = docBattery["status"];
+            status = 16;
         }
     }
     return status;
@@ -732,7 +738,7 @@ int readCMSInfo(const String &input)
             cmsInfo[startIndex].p_code = docBattery["p_code"].as<String>();
             cmsInfo[startIndex].ver = docBattery["ver"].as<String>();
             cmsInfo[startIndex].chip = docBattery["chip"].as<String>();
-            status = 1;
+            status = 16;
         }
         else
         {
@@ -786,7 +792,7 @@ int readAddressing(const String &input)
             if (respon > 0)
             {
                 addressList.push_back(bid);
-                status = 1;
+                status = 16;
             }
         }
         else
@@ -890,7 +896,7 @@ int readCMSBalancingResponse(const String &input)
     {
         cellBalancingStatus[startIndex].cball[i+40] = getBit(i, rbal[2]);
     }
-    status = 1;
+    status = 16;
     Serial.println("Balancing Read Success");
     return status;
 }
@@ -944,7 +950,7 @@ int readCMSBQStatusResponse(const String &input)
         Serial.println("berhasil");
         http.end();
     #endif
-
+    status = 16;
     return status;
 }
 
@@ -1223,41 +1229,43 @@ int sendRequest(int bid, int sequence)
     return status;
 }
 
-int checkResponse(const String &input)
+ReadResponseType checkResponse(const String &input)
 {
+    ReadResponseType readResponseType = noResponse;
+    static int bid = 0;
     if(readVcell(input) >= 0)
     {
-        return 1;
+        readResponseType = vcellResponse;
     }
     else if (readTemp(input) >= 0)
     {
-        return 1;
+        readResponseType = tempResponse;
     }
     else if (readVpack(input) >= 0)
     {
-        return 1;
+        readResponseType = vpackResponse;
     }
     else if (readCMSInfo(input) >= 0)
     {
-        return 1;
+        readResponseType = other;
     }
     else if (readFrameWriteResponse(input) >= 0)
     {
-        return 1;
+        readResponseType = other;
     }
     else if (readCMSBalancingResponse(input) >= 0)
     {
-        return 1;
+        readResponseType = other;
     }
     else if (readCMSBQStatusResponse(input) >= 0)
     {
-        return 1;
+        readResponseType = other;
     }
     else if (readAddressing(input) >= 0)
     {
-        return 1;
+        readResponseType = other;
     }
-    return 0;
+    return readResponseType;
 }
 
 void setup()
@@ -1489,6 +1497,7 @@ void setup()
 void loop()
 {
     int isRxBufferEmpty = false;
+    int serialResponse = 0;
     int qty;
     if (alarmCommand.buzzer)
     {
@@ -1560,7 +1569,61 @@ void loop()
         commandCompleted = false;
         commandString = "";
     }
-    
+
+    if (responseCompleted)
+    {
+        Serial.println(responseString);
+        serialResponse = checkResponse(responseString);
+        // if (evalResponse(responseString))
+        // {
+        //     commandSequence++;
+        //     sendCommand = true;
+        //     lastTime = millis();
+        // }
+        responseCompleted = false;
+        responseString = "";
+    }
+
+    if (lastDeviceAddress != deviceAddress)
+    {
+        dataComplete = 0;
+        lastDeviceAddress = deviceAddress;
+    }
+    else
+    {
+        dataComplete += serialResponse;
+    }
+
+    if (dataComplete < 8)
+    {
+        if (dataComplete == 7)
+        {
+            if (deviceAddress == lastDeviceAddress)
+            {
+                // #ifdef AUTO_POST
+                String phpName = "updatedata.php";
+                String link = serverName + phpName;
+                // HTTPClient http;
+                // http.begin(link);
+                // http.addHeader("Content-Type", "application/json");
+                String httpPostData = jsonManager.buildSingleJsonData(cellData[addressList.at(deviceAddress)]);
+                Serial.println("Data is Complete.. Pushting to Database");
+                Serial.println(httpPostData);
+                // int httpResponseCode = http.POST(httpPostData);
+                // Serial.print("HTTP Response code: ");
+                // Serial.println(httpResponseCode);
+                // Serial.println("berhasil");
+                // http.end();
+                // #endif
+            }
+            dataComplete = 0;
+        }
+    }
+    else
+    {
+        dataComplete = 0;
+    }
+
     if (commandSequence > 4)
     {
         commandSequence = 0;
@@ -1572,19 +1635,6 @@ void loop()
         commandSequence = 0;
     }
 
-    if (responseCompleted)
-    {
-        Serial.println(responseString);
-        checkResponse(responseString);
-        // if (evalResponse(responseString))
-        // {
-        //     commandSequence++;
-        //     sendCommand = true;
-        //     lastTime = millis();
-        // }
-        responseCompleted = false;
-        responseString = "";
-    }
 
     if (addressingCommand.exec)
     {

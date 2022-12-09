@@ -18,6 +18,7 @@ class JsonManager {
     public :
         JsonManager();
         //GET method (read the data)
+        String buildSingleJsonData(const CellData &cellData);
         String buildJsonData(const CellData cellData[], const size_t numOfJsonObject = 8); // get 8 cms data
         String buildJsonRMSInfo(const RMSInfo& rmsInfo); // get rms info
         String buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonObject = 8); // get 8 cms info

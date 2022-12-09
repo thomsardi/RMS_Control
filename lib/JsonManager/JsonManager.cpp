@@ -5,6 +5,32 @@ JsonManager::JsonManager()
 
 }
 
+String JsonManager::buildSingleJsonData(const CellData &cellData)
+{
+    String result;
+    StaticJsonDocument<1536> doc; // for 8 object
+    doc["frame_name"] = cellData.frameName;
+    doc["bid"] = cellData.bid;
+    JsonArray vcell = doc.createNestedArray("vcell");
+    for (int j = 0; j < 45; j++)
+    {
+        vcell.add(cellData.vcell[j]);
+    }
+    JsonArray temp = doc.createNestedArray("temp");
+    for (int j = 0; j < 9; j++)
+    {
+        temp.add(cellData.temp[j]);
+    }
+    JsonArray vpack = doc.createNestedArray("pack");
+    for (int k = 0; k < 3; k++)
+    {
+        vpack.add(cellData.pack[k]);
+    }
+    doc["wake_status"] = cellData.status;
+    serializeJson(doc, result);
+    return result;
+}
+
 String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJsonObject) 
 {
     String result;

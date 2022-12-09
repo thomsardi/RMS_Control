@@ -1,10 +1,11 @@
 #include <Arduino.h>
 
 enum ReadResponseType {
-    error,
-    vcellResponse,
-    vpackResponse,
-    tempResponse
+    noResponse = 0,
+    vcellResponse = 1,
+    tempResponse = 2,
+    vpackResponse = 4,
+    other = 0
 };
 
 struct LedColor {
