@@ -26,7 +26,7 @@
 #define NUM_LEDS 10
 #define merah 202, 1, 9
 
-#define AUTO_POST 1 //comment to disable server auto post
+// #define AUTO_POST 1 //comment to disable server auto post
 
 int SET;
 int cell[45];
@@ -44,7 +44,6 @@ int buzzer = 19;
 
 int const numOfShiftRegister = 8;
 int address = 1; //BID start from 1
-int timeout = 0;
 
 ShiftRegister74HC595<numOfShiftRegister> sr(12, 14, 13);
 DynamicJsonDocument docBattery(1024);
@@ -53,6 +52,15 @@ const char *ssid = "RnD_Sundaya";
 // const char *ssid = "abcde";
 const char *password = "sundaya22";
 const char *host = "192.168.2.174";
+
+// Set your Static IP address
+IPAddress local_ip(192, 168, 2, 200);
+// Set your Gateway IP address
+IPAddress gateway(192, 168, 2, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(192, 168, 2, 1);        // optional
+IPAddress secondaryDNS(119, 18, 156, 10);       // optional
+String hostName = "RMS-Battery-Laminate-Room";
 
 AsyncWebServer server(80);
 JsonManager jsonManager;
@@ -1286,7 +1294,16 @@ void setup()
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
-    WiFi.hostname("esp32");
+    WiFi.disconnect(true);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.mode(WIFI_MODE_NULL);
+    delay(1000);
+    WiFi.setHostname(hostName.c_str());
+    WiFi.mode(WIFI_STA);
+    if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
+    {
+        Serial.println("STA Failed to configure");
+    }
     WiFi.begin(ssid, password);
 
     digitalWrite(relay[0], LOW);
@@ -1294,6 +1311,7 @@ void setup()
     // digitalWrite(buzzer, HIGH);
     // delay(500);
     // digitalWrite(buzzer, LOW);
+    int timeout = 0;
     while(timeout < 25)
     {
         Serial.println("Connecting..");
@@ -1316,17 +1334,36 @@ void setup()
             break;
         }
     }    
-    declareStruct();
-    leds[9] = CRGB::LawnGreen;
-    FastLED.setBrightness(20);
-    FastLED.show();
+
+    if (timeout < 25)
+    {
+        leds[9] = CRGB::LawnGreen;
+        FastLED.setBrightness(20);
+        FastLED.show();
+    }
+    else
+    {
+        leds[9] = CRGB::Red;
+        FastLED.setBrightness(20);
+        FastLED.show();
+    }
     Serial2.println("wifi Connected");
     Serial.println("");
     Serial.print("Connected to ");
     Serial.println(ssid);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-    // declareStruct();
+    Serial.print("Subnet Mask: ");
+    Serial.println(WiFi.subnetMask());
+    Serial.print("Gateway IP: ");
+    Serial.println(WiFi.gatewayIP());
+    Serial.print("DNS 1: ");
+    Serial.println(WiFi.dnsIP(0));
+    Serial.print("DNS 2: ");
+    Serial.println(WiFi.dnsIP(1));
+    Serial.print("Hostname: ");
+    Serial.println(WiFi.getHostname());
+    declareStruct();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
 
