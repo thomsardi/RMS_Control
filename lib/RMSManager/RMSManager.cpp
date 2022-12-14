@@ -75,17 +75,22 @@ String RMSManager::createWakeupRequest(uint8_t bid)
     return output;
 }
 
-String RMSManager::createJsonLedRequest(uint8_t bid, uint8_t ledPosition, LedColor ledColor)
+String RMSManager::createJsonLedRequest(const LedCommand &ledCommand)
 {
     String output;
-    DynamicJsonDocument docBattery(1024);
-    docBattery["BID"] = bid;
-    docBattery["LEDSET"] = 1;
-    docBattery["L"] = ledPosition;
-    docBattery["R"] = ledColor.r;
-    docBattery["G"] = ledColor.g;
-    docBattery["B"] = ledColor.b;
-    serializeJson(docBattery, output);
+    DynamicJsonDocument doc(1024);
+    doc["BID"] = ledCommand.bid;
+    doc["LEDSET"] = ledCommand.ledset;
+    doc["NUM_OF_LED"] = ledCommand.num_of_led;
+    JsonArray led_rgb = doc.createNestedArray("LED_RGB");
+    for (size_t i = 0; i < ledCommand.num_of_led; i++)
+    {
+        JsonArray led_rgb_0 = led_rgb.createNestedArray();
+        led_rgb_0.add(ledCommand.red[i]);
+        led_rgb_0.add(ledCommand.green[i]);
+        led_rgb_0.add(ledCommand.blue[i]);
+    }
+    serializeJson(doc, output);
     return output;
 }
 

@@ -83,6 +83,7 @@ CommandStatus commandStatus;
 FrameWrite frameWrite;
 CMSShutDown cmsShutDown;
 CMSWakeup cmsWakeup;
+LedCommand ledCommand;
 
 int dataComplete = 0;
 
@@ -102,6 +103,7 @@ bool lastCellBalancingSball = false;
 bool lastCMSShutdown = false;
 bool lastCMSWakeup = false;
 bool lastIsGotCmsInfo = false;
+bool lastLedset = false;
 int isAddressingCompleted = 0;
 int commandSequence = 0;
 int deviceAddress = 1;
@@ -289,21 +291,29 @@ int readVcell(const String &input)
         if (!isAllDataNormal)
         {
             Serial.println("Vcell Data Abnormal");
-            LedColor ledColor;
-            ledColor.r = 200;
-            ledColor.g = 0;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 200;
+            cmd.green[position] = 0;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);            
         }
         else 
         {
             Serial.println("Vcell Data Normal");
-            LedColor ledColor;
-            ledColor.r = 0;
-            ledColor.g = 200;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 0;
+            cmd.green[position] = 200;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
 
@@ -332,11 +342,15 @@ int readVcell(const String &input)
         if(isValidJsonFormat)
         {
             Serial.println("Cannot Capture Vcell Data");
-            LedColor ledColor;
-            ledColor.r = 127;
-            ledColor.g = 127;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 127;
+            cmd.green[position] = 127;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
     }
@@ -420,21 +434,29 @@ int readTemp(const String &input)
         if (isAllDataNormal)
         {
             Serial.println("Data Temperature Normal");
-            LedColor ledColor;
-            ledColor.r = 0;
-            ledColor.g = 200;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 0;
+            cmd.green[position] = 200;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
         else
         {
             Serial.println("Data Temperature Abnormal");
-            LedColor ledColor;
-            ledColor.r = 200;
-            ledColor.g = 0;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 200;
+            cmd.green[position] = 0;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
         updater[startIndex].updateTemp();
@@ -486,11 +508,15 @@ int readTemp(const String &input)
         if (isValidJsonFormat)
         {
             Serial.println("Cannot Capture Temperature Data");
-            LedColor ledColor;
-            ledColor.r = 127;
-            ledColor.g = 127;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 127;
+            cmd.green[position] = 127;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
     }
@@ -581,21 +607,29 @@ int readVpack(const String &input)
         if(isAllDataNormal)
         {
             Serial.println("Vpack Data Normal");
-            LedColor ledColor;
-            ledColor.r = 0;
-            ledColor.g = 200;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 0;
+            cmd.green[position] = 200;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
         else
         {
             Serial.println("Vpack Data Abnormal");
-            LedColor ledColor;
-            ledColor.r = 200;
-            ledColor.g = 0;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 200;
+            cmd.green[position] = 0;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
         updater[startIndex].updateVpack();
@@ -641,11 +675,15 @@ int readVpack(const String &input)
         if (isValidJsonFormat)
         {
             Serial.println("Cannot Capture Vpack Data");
-            LedColor ledColor;
-            ledColor.r = 127;
-            ledColor.g = 127;
-            ledColor.b = 0;
-            String output = rmsManager.createJsonLedRequest(bid, bid, ledColor);
+            LedCommand cmd;
+            int position = bid - 1;
+            cmd.bid = bid;
+            cmd.ledset = 1;
+            cmd.num_of_led = 8;
+            cmd.red[position] = 127;
+            cmd.green[position] = 127;
+            cmd.blue[position] = 0;
+            String output = rmsManager.createJsonLedRequest(cmd);
             Serial2.println(output);
         }
     }
@@ -756,7 +794,7 @@ int readCMSInfo(const String &input)
             cmsInfo[startIndex].p_code = docBattery["p_code"].as<String>();
             cmsInfo[startIndex].ver = docBattery["ver"].as<String>();
             cmsInfo[startIndex].chip = docBattery["chip"].as<String>();
-            status = 16;
+            status = 1;
         }
         else
         {
@@ -808,7 +846,7 @@ int readAddressing(const String &input)
             if (respon > 0)
             {
                 addressList.push_back(bid);
-                status = 16;
+                status = 1;
             }
         }
         else
@@ -1099,6 +1137,13 @@ int sendCMSWakeupRequest(CMSWakeup cmsWakeup)
     return 1;
 }
 
+int sendLedRequest(LedCommand ledCommand)
+{
+    String output = rmsManager.createJsonLedRequest(ledCommand);
+    Serial2.println(output);
+    return 1;
+}
+
 void performAlarm()
 {
     for (int i = 1; i <= 8; i++)
@@ -1120,16 +1165,97 @@ void getDeviceStatus(int id)
 
 }
 
+void performAddressingTest2()
+{
+    isAddressingCompleted = 0;
+    
+    addressList.clear();
+    
+    for (int i = 0; i < numOfShiftRegister; i++)
+    {
+        bool isRetry = 1;
+        int timeout = 0;
+        int x = (8 * i) + 7; // 8 is number of shift register output
+        int bid = i + 1; // id start from 1
+        sr.set(x, HIGH);
+        delay(1000);
+        Serial.print("number = ");
+        Serial.println(x);
+        Serial.print("EHUB Number -> BMS === ");
+        Serial.println(bid);
+        String output;
+        StaticJsonDocument<128> doc;
+        deserializeJson(doc, Serial2);
+        while(isRetry)
+        {
+            if (timeout > 50)
+            {
+                isRetry = false;
+            }
+            
+            if(doc.containsKey("BID_STATUS"))
+            {
+                isRetry = false;
+                Serial.println("BID : " + String(bid));
+                DynamicJsonDocument docBattery(1024);
+                docBattery["BID"] = bid;
+                docBattery["SR"] = x;
+                serializeJson(docBattery, output);
+                while (Serial2.available())
+                {
+                    Serial2.read();
+                }
+                Serial2.print(output);
+                Serial2.print('\n');
+            }
+            else
+            {
+                timeout++;
+            }
+            delay(10);
+        }
+        // serializeJson(docBattery, Serial2);
+        Serial.println("===============xxxxxxxxx===========");
+        sr.setAllLow();
+        delay(100);
+    }
+    isAddressingCompleted = 1;
+}
+
+void performAddressingTest()
+{
+    isAddressingCompleted = 0;
+    
+    addressList.clear();
+    DynamicJsonDocument docBattery(1024);
+    for (int i = 0; i < numOfShiftRegister; i++)
+    {
+        bool isRetry = 1;
+        int timeout = 0;
+        int x = (8 * i) + 7; // 8 is number of shift register output
+        int bid = i + 1; // id start from 1
+        sr.set(x, HIGH);
+        delay(100);
+        Serial.print("number = ");
+        Serial.println(x);
+        Serial.print("EHUB Number -> BMS === ");
+        Serial.println(bid);
+        sr.set(x, LOW);
+        delay(100);
+    }
+    isAddressingCompleted = 1;
+}
+
 void performAddressing()
 {
     isAddressingCompleted = 0;
+    
     addressList.clear();
     DynamicJsonDocument docBattery(1024);
     for (int i = 0; i < numOfShiftRegister; i++)
     {
         int x = (8 * i) + 7; // 8 is number of shift register output
         int bid = i + 1; // id start from 1
-
         sr.set(x, HIGH);
         delay(1000);
         Serial.print("number = ");
@@ -1139,7 +1265,6 @@ void performAddressing()
         String output;
         docBattery["BID"] = bid;
         docBattery["SR"] = x;
-        // serializeJson(docBattery, Serial2);
         serializeJson(docBattery, output);
         Serial2.print(output);
         Serial2.print('\n');
@@ -1242,7 +1367,11 @@ int sendRequest(int bid, int sequence)
     case 9:
         sendCMSWakeupRequest(cmsWakeup);
         status = 1;
-        break;   
+        break;
+    case 10:
+        sendLedRequest(ledCommand);
+        status = 1;
+        break;
     }
     return status;
 }
@@ -1306,8 +1435,9 @@ void setup()
     }
     WiFi.begin(ssid, password);
 
-    digitalWrite(relay[0], LOW);
-    digitalWrite(relay[1], LOW);
+    digitalWrite(relay[0], HIGH);
+    digitalWrite(relay[1], HIGH);
+    sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
     // digitalWrite(buzzer, LOW);
@@ -1474,6 +1604,18 @@ void setup()
         commandStatus.dataCollectionCommand = status;
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
+    
+    AsyncCallbackJsonWebHandler *setLedHandler = new AsyncCallbackJsonWebHandler("/set-led", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonLedParser(input.c_str(), ledCommand);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
 
     AsyncCallbackJsonWebHandler *setAlarmParamHandler = new AsyncCallbackJsonWebHandler("/set-alarm-parameter", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -1533,6 +1675,7 @@ void setup()
     server.addHandler(setSleepHandler);
     server.addHandler(setWakeupHandler);
     server.addHandler(setFrameHandler);
+    server.addHandler(setLedHandler);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();
@@ -1565,10 +1708,8 @@ void loop()
         flasher = false;
     }
         
-        
-    
-    digitalWrite(relay[0], alarmCommand.powerRelay);
-    digitalWrite(relay[1], alarmCommand.battRelay);
+    digitalWrite(relay[0], !alarmCommand.powerRelay);
+    digitalWrite(relay[1], !alarmCommand.battRelay);
     if(Serial.available())
     {
         char c = Serial.read();
@@ -1684,6 +1825,7 @@ void loop()
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
         performAddressing();
+        // performAddressingTest();
         addressingCommand.exec = 0;
         sendCommand = true;
         Serial.println("Addressing Finished");
@@ -1753,6 +1895,51 @@ void loop()
                         cellBalancingCommand.sbal = false;
                         lastCellBalancingSball = false;
                         dataCollectionCommand.exec = lastStateDataCollection;
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                    
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }
+        }
+
+        if (ledCommand.ledset)
+        {
+            Serial.println("Set Led");
+            if (lastLedset != ledCommand.ledset) //check if there is command to write balancing
+            {
+                lastLedset = ledCommand.ledset;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
+            }
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(ledCommand.bid, 10);
+                        sendCommand = false;
+                        ledCommand.bid = 0;
+                        ledCommand.ledset = false;
+                        for (size_t i = 0; i < 8; i++)
+                        {
+                            ledCommand.red[i] = 0;
+                            ledCommand.green[i] = 0;
+                            ledCommand.blue[i] = 0;
+                        }
+                        lastLedset = false;
+                        dataCollectionCommand.exec = lastStateDataCollection;
+                        
                         lastTime = millis();
                     }
                     else

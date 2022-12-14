@@ -60,6 +60,16 @@ struct CellBalancingCommand
     int cball[45] = {0};
 };
 
+struct LedCommand
+{
+    int bid = 0;
+    int ledset = 0;
+    int num_of_led = 0;
+    int red[8] = {0};
+    int green[8] = {0};
+    int blue[8] = {0};
+};
+
 struct CommandStatus
 {
     int addrCommand = 0;

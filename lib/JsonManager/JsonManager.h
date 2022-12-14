@@ -38,6 +38,7 @@ class JsonManager {
         int jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[]);
         int jsonCMSShutdownParser(const char* jsonInput, CMSShutDown &cmsShutdown);
         int jsonCMSWakeupParser(const char* jsonInput, CMSWakeup &cmsWakeup);
+        int jsonLedParser(const char* jsonInput, LedCommand &ledCommand);
     private :
         int getBit(int pos, int data);
 };

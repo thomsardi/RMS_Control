@@ -277,6 +277,60 @@ int JsonManager::jsonDataCollectionCommandParser(const char* jsonInput)
     return command;
 }
 
+int JsonManager::jsonLedParser(const char* jsonInput, LedCommand &ledCommand)
+{
+    int status = -1;
+    StaticJsonDocument<768> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+
+    if(!doc.containsKey("bid"))
+    {
+        return status;
+    }
+
+    if(!doc.containsKey("ledset"))
+    {
+        return status;
+    }
+
+    if(!doc.containsKey("num_of_led"))
+    {
+        return status;
+    }
+
+    if(!doc.containsKey("led_rgb"))
+    {
+        return status;
+    }
+
+    ledCommand.bid = doc["bid"];
+    ledCommand.ledset = doc["ledset"];
+    ledCommand.num_of_led = doc["num_of_led"];
+
+    if(ledCommand.num_of_led <= 0)
+    {
+        return status;
+    }
+
+    JsonArray led_rgb = doc["led_rgb"];
+    for (size_t i = 0; i < ledCommand.num_of_led; i++)
+    {
+        JsonArray led_rgb_value = led_rgb[i];
+        ledCommand.red[i] = led_rgb_value[0];
+        ledCommand.green[i] = led_rgb_value[1];
+        ledCommand.blue[i] = led_rgb_value[2];
+    }
+    status = 1;
+    return status;
+
+}
+
 int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam)
 {
     StaticJsonDocument<128> doc;

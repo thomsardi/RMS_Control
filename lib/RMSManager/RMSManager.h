@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <RMSManagerData.h>
 #include <ArduinoJson.h>
+#include <JsonManager.h>
 
 class RMSManager {
     public :
@@ -16,7 +17,7 @@ class RMSManager {
         String createShutDownRequest(uint8_t bid);
         String createWakeupRequest(uint8_t bid);
         String createCMSStatusRequest(uint8_t bid);
-        String createJsonLedRequest(uint8_t bid, uint8_t ledPosition, LedColor ledColor);
+        String createJsonLedRequest(const LedCommand &ledCommand);
         String createCMSInfoRequest(uint8_t bid);
         String createCMSFrameWriteIdRequest(uint8_t bid, String frameId);
         String createCMSReadBalancingStatus(uint8_t bid);
