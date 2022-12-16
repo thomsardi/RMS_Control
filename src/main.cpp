@@ -22,11 +22,24 @@
 
 #define RXD2 16
 #define TXD2 17
+
 #define LED_PIN 27
+// Original pin mapping
+// #define SERIAL_DATA 12
+// #define SHCP 14
+// #define STCP 13
+
+// Pin mapping edit
+#define SERIAL_DATA 14
+#define SHCP 13
+#define STCP 12
+
 #define NUM_LEDS 10
 #define merah 202, 1, 9
 
 // #define AUTO_POST 1 //comment to disable server auto post
+
+// #define REVERSED 1
 
 int SET;
 int cell[45];
@@ -45,7 +58,14 @@ int buzzer = 19;
 int const numOfShiftRegister = 8;
 int address = 1; //BID start from 1
 
-ShiftRegister74HC595<numOfShiftRegister> sr(12, 14, 13);
+int serialData = 12;
+int shcp = 14;
+int stcp = 13;
+
+uint8_t ledDIN = 27;
+
+ShiftRegister74HC595<numOfShiftRegister> sr(SERIAL_DATA, SHCP, STCP);
+
 DynamicJsonDocument docBattery(1024);
 CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
@@ -84,6 +104,8 @@ FrameWrite frameWrite;
 CMSShutDown cmsShutDown;
 CMSWakeup cmsWakeup;
 LedCommand ledCommand;
+CMSRestartCommand cmsRestartCommand;
+RMSRestartCommand rmsRestartCommand;
 
 int dataComplete = 0;
 
@@ -299,8 +321,9 @@ int readVcell(const String &input)
             cmd.red[position] = 200;
             cmd.green[position] = 0;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);            
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);  
+            // Serial2.print('\n');          
         }
         else 
         {
@@ -313,8 +336,9 @@ int readVcell(const String &input)
             cmd.red[position] = 0;
             cmd.green[position] = 200;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
 
         #ifdef AUTO_POST
@@ -350,8 +374,9 @@ int readVcell(const String &input)
             cmd.red[position] = 127;
             cmd.green[position] = 127;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
     }
     return status;
@@ -442,8 +467,9 @@ int readTemp(const String &input)
             cmd.red[position] = 0;
             cmd.green[position] = 200;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
         else
         {
@@ -456,8 +482,9 @@ int readTemp(const String &input)
             cmd.red[position] = 200;
             cmd.green[position] = 0;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
         updater[startIndex].updateTemp();
         status = 1;
@@ -516,8 +543,9 @@ int readTemp(const String &input)
             cmd.red[position] = 127;
             cmd.green[position] = 127;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
     }
     return status;
@@ -615,8 +643,9 @@ int readVpack(const String &input)
             cmd.red[position] = 0;
             cmd.green[position] = 200;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
         else
         {
@@ -629,8 +658,9 @@ int readVpack(const String &input)
             cmd.red[position] = 200;
             cmd.green[position] = 0;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
         updater[startIndex].updateVpack();
         status = 1;
@@ -683,8 +713,9 @@ int readVpack(const String &input)
             cmd.red[position] = 127;
             cmd.green[position] = 127;
             cmd.blue[position] = 0;
-            String output = rmsManager.createJsonLedRequest(cmd);
-            Serial2.println(output);
+            // String output = rmsManager.createJsonLedRequest(cmd);
+            // Serial2.print(output);
+            // Serial2.print('\n');
         }
     }
     return status;
@@ -839,10 +870,10 @@ int readAddressing(const String &input)
 
     if(!doc.isNull())
     {
-        if(doc.containsKey("BID") && doc.containsKey("RESPON"))
+        if(doc.containsKey("BID") && doc.containsKey("RESPONSE"))
         {
             bid = doc["BID"];
-            int respon = doc["RESPON"];
+            int respon = doc["RESPONSE"];
             if (respon > 0)
             {
                 addressList.push_back(bid);
@@ -1019,7 +1050,8 @@ int sendVcellRequest(int bid)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createJsonVcellDataRequest(bid);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     // Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
@@ -1034,7 +1066,8 @@ int sendTempRequest(int bid)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createJsonTempDataRequest(bid);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     // Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
@@ -1049,7 +1082,8 @@ int sendVpackRequest(int bid)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createJsonVpackDataRequest(bid);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     // Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
@@ -1064,8 +1098,8 @@ int sendCMSReadBalancingStatus(int bid)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createCMSReadBalancingStatus(bid);
-    Serial2.println(output);
-    // Serial.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
     return 1;
@@ -1079,8 +1113,8 @@ int sendCMSInfoRequest(int bid)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createCMSInfoRequest(bid);
-    Serial2.println(output);
-    // Serial.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
     return 1;
@@ -1094,8 +1128,8 @@ int sendCMSFrameWriteRequest(FrameWrite frameWrite)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createCMSFrameWriteIdRequest(frameWrite.bid, frameWrite.frameName);
-    Serial2.println(output);
-    // Serial.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
     return 1;
@@ -1109,7 +1143,8 @@ int sendBalancingWriteRequest(CellBalancingCommand cellBalancingCommand)
     FastLED.setBrightness(20);
     FastLED.show();
     String output = rmsManager.createCMSWriteBalancingRequest(cellBalancingCommand.bid, cellBalancingCommand.cball);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     Serial.println(output);
     leds[led] = CRGB(129, 141, 214);
     FastLED.show();
@@ -1119,28 +1154,40 @@ int sendBalancingWriteRequest(CellBalancingCommand cellBalancingCommand)
 int sendCMSStatusRequest(int bid)
 {
     String output = rmsManager.createCMSStatusRequest(bid);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     return 1;
 }
 
 int sendCMSShutDownRequest(CMSShutDown cmsShutDown)
 {
     String output = rmsManager.createShutDownRequest(cmsShutDown.bid);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     return 1;
 }
 
 int sendCMSWakeupRequest(CMSWakeup cmsWakeup)
 {
     String output = rmsManager.createWakeupRequest(cmsWakeup.bid);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
+    return 1;
+}
+
+int sendCMSRestartRequest(CMSRestartCommand cmsResetCommand)
+{
+    String output = rmsManager.createCMSResetRequest(cmsResetCommand.bid);
+    Serial2.print(output);
+    Serial2.print('\n');
     return 1;
 }
 
 int sendLedRequest(LedCommand ledCommand)
 {
     String output = rmsManager.createJsonLedRequest(ledCommand);
-    Serial2.println(output);
+    Serial2.print(output);
+    Serial2.print('\n');
     return 1;
 }
 
@@ -1154,7 +1201,8 @@ void performAlarm()
             // docBattery["SBQ"] = a;
             // DynamicJsonDocument docBattery(768);
             String output = rmsManager.createShutDownRequest(i);
-            Serial2.println(output);
+            Serial2.print(output);
+            Serial2.print('\n');
             // serializeJson(docBattery, Serial2);
         }
     }
@@ -1170,53 +1218,81 @@ void performAddressingTest2()
     isAddressingCompleted = 0;
     
     addressList.clear();
-    
     for (int i = 0; i < numOfShiftRegister; i++)
     {
         bool isRetry = 1;
         int timeout = 0;
-        int x = (8 * i) + 7; // 8 is number of shift register output
+        uint8_t x = (8 * i) + 7; // 8 is number of shift register output
         int bid = i + 1; // id start from 1
         sr.set(x, HIGH);
-        delay(1000);
+        delay(400);
         Serial.print("number = ");
         Serial.println(x);
         Serial.print("EHUB Number -> BMS === ");
         Serial.println(bid);
-        String output;
+        // Serial.println(sr.get(x));
         StaticJsonDocument<128> doc;
-        deserializeJson(doc, Serial2);
-        while(isRetry)
-        {
-            if (timeout > 50)
-            {
-                isRetry = false;
-            }
-            
-            if(doc.containsKey("BID_STATUS"))
-            {
-                isRetry = false;
-                Serial.println("BID : " + String(bid));
-                DynamicJsonDocument docBattery(1024);
-                docBattery["BID"] = bid;
-                docBattery["SR"] = x;
-                serializeJson(docBattery, output);
-                while (Serial2.available())
-                {
-                    Serial2.read();
-                }
-                Serial2.print(output);
-                Serial2.print('\n');
-            }
-            else
-            {
-                timeout++;
-            }
-            delay(10);
-        }
+        String output;
+        doc["BID_ADDRESS"] = bid;
+        doc["SR"] = x;
+        serializeJson(doc, output);
+        Serial2.print(output);
+        Serial2.print('\n');
+        // String serialIn = "";
+        // StaticJsonDocument<128> doc;
+        // while(isRetry)
+        // {
+        //     // Serial.println(serialIn);
+        //     if (timeout > 50)
+        //     {
+        //         break;
+        //     }
+        //     bool isJsonCompleted = false;
+        //     while(Serial2.available())
+        //     {
+        //         char in = Serial2.read();
+        //         if (in != '\n')
+        //         {
+        //             serialIn += in;
+        //         }
+        //         else
+        //         {
+        //             deserializeJson(doc, serialIn);
+        //             isJsonCompleted = true;
+        //         }
+        //     }
+        //     if(isJsonCompleted)
+        //     {
+        //         if(doc.containsKey("BID_STATUS"))
+        //         {
+        //             isRetry = false;
+        //             Serial.println("BID : " + String(bid));
+        //             DynamicJsonDocument docBattery(1024);
+        //             String output;
+        //             docBattery["BID"] = bid;
+        //             docBattery["SR"] = x;
+        //             serializeJson(docBattery, output);
+        //             Serial2.print(output);
+        //             Serial2.print('\n');
+        //             isJsonCompleted = false;
+        //             break;
+        //         }
+        //         else
+        //         {
+        //             int result = readAddressing(serialIn);
+        //             Serial.println("Status Addressing = " + String(result));
+        //         }
+        //     }
+        //     else
+        //     {
+        //         timeout++;
+        //     }
+        //     delay(10);
+        // }
         // serializeJson(docBattery, Serial2);
         Serial.println("===============xxxxxxxxx===========");
-        sr.setAllLow();
+        // sr.setAllLow();
+        sr.set(x, LOW);
         delay(100);
     }
     isAddressingCompleted = 1;
@@ -1232,16 +1308,17 @@ void performAddressingTest()
     {
         bool isRetry = 1;
         int timeout = 0;
-        int x = (8 * i) + 7; // 8 is number of shift register output
+        // int x = (8 * i) + 7; // 8 is number of shift register output
+        int x = (8 * 0) + 7;
         int bid = i + 1; // id start from 1
         sr.set(x, HIGH);
-        delay(100);
+        delay(1000);
         Serial.print("number = ");
         Serial.println(x);
         Serial.print("EHUB Number -> BMS === ");
         Serial.println(bid);
         sr.set(x, LOW);
-        delay(100);
+        delay(200);
     }
     isAddressingCompleted = 1;
 }
@@ -1257,7 +1334,7 @@ void performAddressing()
         int x = (8 * i) + 7; // 8 is number of shift register output
         int bid = i + 1; // id start from 1
         sr.set(x, HIGH);
-        delay(1000);
+        delay(2000);
         Serial.print("number = ");
         Serial.println(x);
         Serial.print("EHUB Number -> BMS === ");
@@ -1274,6 +1351,29 @@ void performAddressing()
         delay(100);
     }
     isAddressingCompleted = 1;
+}
+
+void setShiftRegisterState()
+{
+    uint8_t pinValues[numOfShiftRegister] = {0};
+    uint8_t defaultValue = B00000010; //default state, Q1 is set to HIGH because restart is active LOW
+    for (int i = 0; i < numOfShiftRegister; i++)
+    {
+        pinValues[i] = defaultValue;
+    }
+    sr.setAll(pinValues);
+}
+
+void restartCMSViaPin()
+{
+    for (size_t i = 0; i < numOfShiftRegister; i++)
+    {
+        int x = (8 * i) + 1; // 8 is number of shift register output, 1 is Q1 of shift register
+        sr.set(x, LOW);
+        delay(100);
+        sr.set(x,HIGH);
+        delay(100);
+    }
 }
 
 String parseconfig(String url)
@@ -1321,6 +1421,12 @@ void evalCommand(String input)
     else if (input == "startaddress")
     {
         addressingCommand.exec = true;
+    }
+    else if (input == "restartcms")
+    {
+        Serial.println("Resetting CMS");
+        dataCollectionCommand.exec = false;
+        restartCMSViaPin();
     }
 }
 
@@ -1370,6 +1476,10 @@ int sendRequest(int bid, int sequence)
         break;
     case 10:
         sendLedRequest(ledCommand);
+        status = 1;
+        break;
+    case 11:
+        sendCMSRestartRequest(cmsRestartCommand);
         status = 1;
         break;
     }
@@ -1423,31 +1533,33 @@ void setup()
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
+    setShiftRegisterState();
     WiFi.disconnect(true);
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.mode(WIFI_MODE_NULL);
-    delay(1000);
+    delay(100);
     WiFi.setHostname(hostName.c_str());
     WiFi.mode(WIFI_STA);
-    if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
-    {
-        Serial.println("STA Failed to configure");
-    }
+    // if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
+    // {
+    //     Serial.println("STA Failed to configure");
+    // }
     WiFi.begin(ssid, password);
 
     digitalWrite(relay[0], HIGH);
     digitalWrite(relay[1], HIGH);
-    sr.setAllLow();
+    // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
     // digitalWrite(buzzer, LOW);
+
     int timeout = 0;
-    while(timeout < 25)
+    while(timeout < 10)
     {
         Serial.println("Connecting..");
         if (WiFi.status() != WL_CONNECTED)
         {
-            Serial2.print(".");
+            // Serial2.print(".");
             Serial.print(".");
             leds[9] = CRGB::Gold;
             FastLED.setBrightness(1);
@@ -1470,29 +1582,29 @@ void setup()
         leds[9] = CRGB::LawnGreen;
         FastLED.setBrightness(20);
         FastLED.show();
+        Serial.println("");
+        Serial.print("Connected to ");
+        Serial.println(ssid);
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        Serial.print("Subnet Mask: ");
+        Serial.println(WiFi.subnetMask());
+        Serial.print("Gateway IP: ");
+        Serial.println(WiFi.gatewayIP());
+        Serial.print("DNS 1: ");
+        Serial.println(WiFi.dnsIP(0));
+        Serial.print("DNS 2: ");
+        Serial.println(WiFi.dnsIP(1));
+        Serial.print("Hostname: ");
+        Serial.println(WiFi.getHostname());
     }
     else
     {
         leds[9] = CRGB::Red;
         FastLED.setBrightness(20);
         FastLED.show();
+        Serial.println("WiFi Not Connected");
     }
-    Serial2.println("wifi Connected");
-    Serial.println("");
-    Serial.print("Connected to ");
-    Serial.println(ssid);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("Subnet Mask: ");
-    Serial.println(WiFi.subnetMask());
-    Serial.print("Gateway IP: ");
-    Serial.println(WiFi.gatewayIP());
-    Serial.print("DNS 1: ");
-    Serial.println(WiFi.dnsIP(0));
-    Serial.print("DNS 2: ");
-    Serial.println(WiFi.dnsIP(1));
-    Serial.print("Hostname: ");
-    Serial.println(WiFi.getHostname());
     declareStruct();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
@@ -1654,6 +1766,33 @@ void setup()
         cmsWakeup.wakeup = status;
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
+    
+    AsyncCallbackJsonWebHandler *resetCMSHandler = new AsyncCallbackJsonWebHandler("/restart-cms", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonCMSRestartParser(input.c_str(), cmsRestartCommand);
+        cmsRestartCommand.restart = status;
+        addressList.clear();
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+    
+    AsyncCallbackJsonWebHandler *resetRMSHandler = new AsyncCallbackJsonWebHandler("/restart", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonRMSRestartParser(input.c_str());
+        rmsRestartCommand.restart = status;
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
 
     AsyncCallbackJsonWebHandler *setFrameHandler = new AsyncCallbackJsonWebHandler("/set-frame", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -1676,11 +1815,14 @@ void setup()
     server.addHandler(setWakeupHandler);
     server.addHandler(setFrameHandler);
     server.addHandler(setLedHandler);
+    server.addHandler(resetCMSHandler);
+    server.addHandler(resetRMSHandler);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();
     Serial.println("HTTP server started");
-    delay(2000);
+    restartCMSViaPin();
+    delay(100);
 }
 
 void loop()
@@ -1804,6 +1946,7 @@ void loop()
                 Serial.println(httpResponseCode);
                 http.end();
             #endif
+            Serial.println("Data is Complete.. Pushing to Database");
         }
     }
 
@@ -1824,8 +1967,8 @@ void loop()
         // perform addressing
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
-        performAddressing();
-        // performAddressingTest();
+        // performAddressing();
+        performAddressingTest2();
         addressingCommand.exec = 0;
         sendCommand = true;
         Serial.println("Addressing Finished");
@@ -2033,6 +2176,71 @@ void loop()
                 dataCollectionCommand.exec = false;
             }
             
+        }
+
+        if (cmsRestartCommand.restart)
+        {
+            Serial.println("Reset CMS");
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(cmsRestartCommand.bid, 11);
+                        sendCommand = false;
+                        cmsRestartCommand.bid = 0;
+                        cmsRestartCommand.restart = false;                   
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                    
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }
+        }
+
+        if (rmsRestartCommand.restart)
+        {
+            Serial.println("Reset CMS");
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        for (size_t i = 0; i < NUM_LEDS; i++)
+                        {
+                            leds[i] = CRGB::Black;
+                        }
+                        FastLED.show();
+                        delay(2000);
+                        rmsRestartCommand.restart = 0;
+                        ESP.restart();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                    
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }
         }
         
         if(dataCollectionCommand.exec)

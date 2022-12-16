@@ -21,6 +21,7 @@ class RMSManager {
         String createCMSInfoRequest(uint8_t bid);
         String createCMSFrameWriteIdRequest(uint8_t bid, String frameId);
         String createCMSReadBalancingStatus(uint8_t bid);
+        String createCMSResetRequest(uint8_t bid);
         // int sendVcellRequest(uint8_t bid);
         // int sendVpackRequest(uint8_t bid);
         // int sendTempRequest(uint8_t bid);

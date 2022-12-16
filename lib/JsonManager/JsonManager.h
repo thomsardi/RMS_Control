@@ -39,6 +39,8 @@ class JsonManager {
         int jsonCMSShutdownParser(const char* jsonInput, CMSShutDown &cmsShutdown);
         int jsonCMSWakeupParser(const char* jsonInput, CMSWakeup &cmsWakeup);
         int jsonLedParser(const char* jsonInput, LedCommand &ledCommand);
+        int jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &cmsRestartCommand);
+        int jsonRMSRestartParser(const char* jsonInput);
     private :
         int getBit(int pos, int data);
 };

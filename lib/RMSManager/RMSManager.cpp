@@ -104,6 +104,16 @@ String RMSManager::createCMSInfoRequest(uint8_t bid)
     return output;
 }
 
+String RMSManager::createCMSResetRequest(uint8_t bid)
+{
+    String output;
+    StaticJsonDocument<32> doc;
+    doc["BID"] = bid;
+    doc["RESTART"] = 1;
+    serializeJson(doc, output);
+    return output;
+}
+
 String RMSManager::createCMSFrameWriteIdRequest(uint8_t bid, String frameName)
 {
     String output;

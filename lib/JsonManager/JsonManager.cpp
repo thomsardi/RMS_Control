@@ -553,6 +553,58 @@ int JsonManager::jsonCMSWakeupParser(const char* jsonInput, CMSWakeup &cmsWakeup
     return command;
 }
 
+int JsonManager::jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &cmsRestartCommand)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        cmsRestartCommand.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("restart")) 
+    {
+        return -1;
+    }
+    cmsRestartCommand.restart = doc["restart"]; // 1
+    command = cmsRestartCommand.restart;
+    return command;
+}
+
+int JsonManager::jsonRMSRestartParser(const char* jsonInput)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<32> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (!doc.containsKey("restart")) 
+    {
+        return -1;
+    }
+    command = doc["restart"]; // 1
+    return command;
+}
+
 
 int JsonManager::getBit(int pos, int data)
 {

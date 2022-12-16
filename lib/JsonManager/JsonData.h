@@ -100,6 +100,17 @@ struct SleepCommand
     int exec = 0;
 };
 
+struct CMSRestartCommand
+{
+    int bid = 0;
+    int restart = 0;
+};
+
+struct RMSRestartCommand
+{
+    int restart = 0;
+};
+
 struct FrameWrite
 {
     int bid = 0;
