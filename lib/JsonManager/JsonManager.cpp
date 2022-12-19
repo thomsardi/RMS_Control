@@ -584,6 +584,27 @@ int JsonManager::jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &
     return command;
 }
 
+int JsonManager::jsonCMSRestartPinParser(const char* jsonInput)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<32> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (!doc.containsKey("restart")) 
+    {
+        return -1;
+    }
+    command = doc["restart"]; // 1
+    return command;
+}
+
 int JsonManager::jsonRMSRestartParser(const char* jsonInput)
 {
     int command = 0;
@@ -604,6 +625,8 @@ int JsonManager::jsonRMSRestartParser(const char* jsonInput)
     command = doc["restart"]; // 1
     return command;
 }
+
+
 
 
 int JsonManager::getBit(int pos, int data)

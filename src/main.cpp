@@ -19,9 +19,15 @@
 #include <AsyncJson.h>
 #include <RMSManager.h>
 #include <Updater.h>
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
+#include <ESPmDNS.h>
 
 #define RXD2 16
 #define TXD2 17
+
+#define I2C_SDA 33
+#define I2C_SCL 32
 
 #define LED_PIN 27
 // Original pin mapping
@@ -62,16 +68,21 @@ int serialData = 12;
 int shcp = 14;
 int stcp = 13;
 
+int lcdColumns = 16;
+int lcdRows = 2;
+
 uint8_t ledDIN = 27;
 
 ShiftRegister74HC595<numOfShiftRegister> sr(SERIAL_DATA, SHCP, STCP);
+LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
 
 DynamicJsonDocument docBattery(1024);
 CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
 // const char *ssid = "abcde";
 const char *password = "sundaya22";
-const char *host = "192.168.2.174";
+const char *host = "192.168.2.92";
+// const char *host = "desktop-gu3m4fp";
 
 // Set your Static IP address
 IPAddress local_ip(192, 168, 2, 200);
@@ -80,7 +91,7 @@ IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(192, 168, 2, 1);        // optional
 IPAddress secondaryDNS(119, 18, 156, 10);       // optional
-String hostName = "RMS-Battery-Laminate-Room";
+String hostName = "rms-battery1-rnd-room";
 
 AsyncWebServer server(80);
 JsonManager jsonManager;
@@ -126,6 +137,7 @@ bool lastCMSShutdown = false;
 bool lastCMSWakeup = false;
 bool lastIsGotCmsInfo = false;
 bool lastLedset = false;
+bool isCmsRestartPin = false;
 int isAddressingCompleted = 0;
 int commandSequence = 0;
 int deviceAddress = 1;
@@ -139,7 +151,8 @@ String commandString;
 String responseString;
 String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-String serverName = "http://192.168.2.174/mydatabase/";
+String serverName = "http://192.168.2.92/mydatabase/";
+// String serverName = "http://desktop-gu3m4fp/mydatabase/";
 
 void declareStruct()
 {
@@ -1225,6 +1238,8 @@ void performAddressingTest2()
         uint8_t x = (8 * i) + 7; // 8 is number of shift register output
         int bid = i + 1; // id start from 1
         sr.set(x, HIGH);
+        delay(100);
+        sr.set(x, LOW);
         delay(400);
         Serial.print("number = ");
         Serial.println(x);
@@ -1291,9 +1306,8 @@ void performAddressingTest2()
         // }
         // serializeJson(docBattery, Serial2);
         Serial.println("===============xxxxxxxxx===========");
+        // delay(200);
         // sr.setAllLow();
-        sr.set(x, LOW);
-        delay(100);
     }
     isAddressingCompleted = 1;
 }
@@ -1355,25 +1369,21 @@ void performAddressing()
 
 void setShiftRegisterState()
 {
-    uint8_t pinValues[numOfShiftRegister] = {0};
-    uint8_t defaultValue = B00000010; //default state, Q1 is set to HIGH because restart is active LOW
-    for (int i = 0; i < numOfShiftRegister; i++)
-    {
-        pinValues[i] = defaultValue;
-    }
+    uint8_t pinValues[numOfShiftRegister] = {B01000000}; //default state, Q6 is set to HIGH because restart is active LOW
     sr.setAll(pinValues);
 }
 
 void restartCMSViaPin()
 {
+    uint8_t pinValues[numOfShiftRegister] = {B00000000};
+    sr.setAll(pinValues);
+    delay(100);
     for (size_t i = 0; i < numOfShiftRegister; i++)
     {
-        int x = (8 * i) + 1; // 8 is number of shift register output, 1 is Q1 of shift register
-        sr.set(x, LOW);
-        delay(100);
-        sr.set(x,HIGH);
-        delay(100);
+        pinValues[i] = {B01000000}; //set to default state
     }
+    sr.setAll(pinValues);
+    delay(100);
 }
 
 String parseconfig(String url)
@@ -1424,7 +1434,7 @@ void evalCommand(String input)
     }
     else if (input == "restartcms")
     {
-        Serial.println("Resetting CMS");
+        Serial.println("Restarting CMS");
         dataCollectionCommand.exec = false;
         restartCMSViaPin();
     }
@@ -1533,7 +1543,6 @@ void setup()
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
-    setShiftRegisterState();
     WiFi.disconnect(true);
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.mode(WIFI_MODE_NULL);
@@ -1545,18 +1554,15 @@ void setup()
     //     Serial.println("STA Failed to configure");
     // }
     WiFi.begin(ssid, password);
-
-    digitalWrite(relay[0], HIGH);
-    digitalWrite(relay[1], HIGH);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
     // digitalWrite(buzzer, LOW);
 
     int timeout = 0;
+    Serial.println("Connecting..");
     while(timeout < 10)
     {
-        Serial.println("Connecting..");
         if (WiFi.status() != WL_CONNECTED)
         {
             // Serial2.print(".");
@@ -1575,9 +1581,18 @@ void setup()
         {
             break;
         }
-    }    
-
-    if (timeout < 25)
+    }
+    delay(100); //wait a bit to stabilize voltage and current
+    if (!MDNS.begin(hostName.c_str())) {             // Start the mDNS responder for esp8266.local
+        Serial.println("Error setting up MDNS responder!");
+    }
+    Serial.println("mDNS responder started");
+    delay(100);
+    Wire.begin(I2C_SDA, I2C_SCL);
+    lcd.init();
+    lcd.backlight();    
+    lcd.clear();
+    if (timeout < 10)
     {
         leds[9] = CRGB::LawnGreen;
         FastLED.setBrightness(20);
@@ -1597,6 +1612,10 @@ void setup()
         Serial.println(WiFi.dnsIP(1));
         Serial.print("Hostname: ");
         Serial.println(WiFi.getHostname());
+        lcd.setCursor(0, 0);
+        lcd.print("IP :");
+        lcd.setCursor(0,1);
+        lcd.print(WiFi.localIP());
     }
     else
     {
@@ -1604,7 +1623,13 @@ void setup()
         FastLED.setBrightness(20);
         FastLED.show();
         Serial.println("WiFi Not Connected");
+        lcd.setCursor(0,0);
+        lcd.print("Not Connected");
     }
+    delay(100); //wait a bit to stabilize the voltage and current consumption
+    digitalWrite(relay[0], HIGH);
+    digitalWrite(relay[1], HIGH);
+    setShiftRegisterState();
     declareStruct();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
@@ -1767,7 +1792,7 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
     
-    AsyncCallbackJsonWebHandler *resetCMSHandler = new AsyncCallbackJsonWebHandler("/restart-cms", [](AsyncWebServerRequest *request, JsonVariant &json)
+    AsyncCallbackJsonWebHandler *restartCMSHandler = new AsyncCallbackJsonWebHandler("/restart-cms", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
         String response = R"(
         {
@@ -1781,7 +1806,22 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
     
-    AsyncCallbackJsonWebHandler *resetRMSHandler = new AsyncCallbackJsonWebHandler("/restart", [](AsyncWebServerRequest *request, JsonVariant &json)
+    AsyncCallbackJsonWebHandler *restartCMSViaPinHandler = new AsyncCallbackJsonWebHandler("/restart-cms-via-pin", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonRMSRestartParser(input.c_str());
+        isCmsRestartPin = true;
+        status = isCmsRestartPin;
+        addressList.clear();
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
+    AsyncCallbackJsonWebHandler *restartRMSHandler = new AsyncCallbackJsonWebHandler("/restart", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
         String response = R"(
         {
@@ -1815,14 +1855,15 @@ void setup()
     server.addHandler(setWakeupHandler);
     server.addHandler(setFrameHandler);
     server.addHandler(setLedHandler);
-    server.addHandler(resetCMSHandler);
-    server.addHandler(resetRMSHandler);
+    server.addHandler(restartCMSHandler);
+    server.addHandler(restartRMSHandler);
+    server.addHandler(restartCMSViaPinHandler);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();
     Serial.println("HTTP server started");
     restartCMSViaPin();
-    delay(100);
+    // delay(100);
 }
 
 void loop()
@@ -1873,7 +1914,7 @@ void loop()
     if (Serial2.available())
     {
         char c = Serial2.read();
-        if (c == '\n' || c == '\r')
+        if (c == '\n')
         {
             responseCompleted = true;
         }
@@ -2180,7 +2221,7 @@ void loop()
 
         if (cmsRestartCommand.restart)
         {
-            Serial.println("Reset CMS");
+            Serial.println("Restart CMS");
             isGotCMSInfo = false;
             deviceAddress = 0;
             commandSequence = 0;
@@ -2209,9 +2250,39 @@ void loop()
             }
         }
 
+        if (isCmsRestartPin)
+        {
+            Serial.println("Restart CMS");
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        restartCMSViaPin();
+                        sendCommand = false;
+                        isCmsRestartPin = false;                 
+                        lastTime = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                    
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }
+        }
+
         if (rmsRestartCommand.restart)
         {
-            Serial.println("Reset CMS");
+            Serial.println("Restart RMS");
             isGotCMSInfo = false;
             deviceAddress = 0;
             commandSequence = 0;
@@ -2293,7 +2364,7 @@ void loop()
                 // change command every 100 ms
                 if(!sendCommand)
                 {
-                    if (millis() - lastTime > 100)
+                    if (millis() - lastTime > 200)
                     {
                         if (lastIsGotCmsInfo != isGotCMSInfo) // check if the flow is after request info, to prevent increment the commandSequence
                         {
