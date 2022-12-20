@@ -152,12 +152,35 @@ String responseString;
 String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
 String serverName = "http://192.168.2.92/mydatabase/";
-// String serverName = "http://desktop-gu3m4fp/mydatabase/";
+// String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
+
+void reInitCellData()
+{
+    for (size_t i = 0; i < 8; i++)
+    {
+        cellData[i].frameName = "unspecified";
+        cellData[i].bid = i + 100;
+        for (size_t j = 0; j < 45; j++)
+        {
+            cellData[i].vcell[j] = -1;
+        }
+        for (size_t j = 0; j < 9; j++)
+        {
+            cellData[i].temp[j] = -1;
+        }
+        for (size_t j = 0; j < 3; j++)
+        {
+            cellData[i].pack[j] = -1;
+        }
+        cellData[i].status = 0;
+    }
+}
 
 void declareStruct()
 {
     for (size_t i = 0; i < 8; i++)
     {
+        cellData[i].frameName = "unspecified";
         cellData[i].bid = i + 100;
         for (size_t j = 0; j < 45; j++)
         {
@@ -433,7 +456,7 @@ int readTemp(const String &input)
                 for (int i = 0; i < 9; i++)
                 {
                     float storage = docBattery["TEMP"][i];
-                    temp[i] = (int32_t) storage * 1000;
+                    temp[i] = static_cast<int32_t> (storage * 1000);
                     docBattery["TEMP"][i] = temp[i];
                     cellData[startIndex].temp[i] = temp[i];
                     Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
@@ -1869,6 +1892,7 @@ void setup()
 void loop()
 {
     int isRxBufferEmpty = false;
+    int isResetSerialTimer = false;
     int serialResponse = 0;
     int qty;
     if (alarmCommand.buzzer)
@@ -1924,12 +1948,7 @@ void loop()
         }
         // lastTime = millis();
         lastReceivedSerialData = millis();
-    }
-
-    if (millis() - lastReceivedSerialData > 50)
-    {
-        // Serial.println("No Serial 2 Data");
-        isRxBufferEmpty = true;
+        isResetSerialTimer = true;
     }
 
     if (commandCompleted)
@@ -2002,6 +2021,20 @@ void loop()
         commandSequence = 0;
     }
 
+    if(isResetSerialTimer)
+    {
+        lastReceivedSerialData = millis();
+    }
+
+    if (millis() - lastReceivedSerialData > 100)
+    {
+        // Serial.println("No Serial 2 Data");
+        isRxBufferEmpty = true;
+    }
+    else
+    {
+        lastTime = millis();
+    }
 
     if (addressingCommand.exec)
     {
@@ -2049,6 +2082,10 @@ void loop()
                         dataCollectionCommand.exec = false;
                     }
                 }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
             }
             else
             {
@@ -2085,6 +2122,10 @@ void loop()
                     {
                         dataCollectionCommand.exec = false;
                     }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
                 }
                     
             }
@@ -2131,6 +2172,10 @@ void loop()
                         dataCollectionCommand.exec = false;
                     }
                 }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
                     
             }
             else
@@ -2171,6 +2216,10 @@ void loop()
                         dataCollectionCommand.exec = false;
                     }
                 }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
             }
             else
             {
@@ -2210,6 +2259,10 @@ void loop()
                     {
                         dataCollectionCommand.exec = false;
                     }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
                 }    
             }
             else
@@ -2234,13 +2287,18 @@ void loop()
                         sendRequest(cmsRestartCommand.bid, 11);
                         sendCommand = false;
                         cmsRestartCommand.bid = 0;
-                        cmsRestartCommand.restart = false;                   
+                        cmsRestartCommand.restart = false;
+                        reInitCellData();                   
                         lastTime = millis();
                     }
                     else
                     {
                         dataCollectionCommand.exec = false;
                     }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
                 }
                     
             }
@@ -2264,13 +2322,18 @@ void loop()
                     {
                         restartCMSViaPin();
                         sendCommand = false;
-                        isCmsRestartPin = false;                 
+                        isCmsRestartPin = false;   
+                        reInitCellData();              
                         lastTime = millis();
                     }
                     else
                     {
                         dataCollectionCommand.exec = false;
                     }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
                 }
                     
             }
@@ -2305,6 +2368,10 @@ void loop()
                     {
                         dataCollectionCommand.exec = false;
                     }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
                 }
                     
             }
@@ -2364,7 +2431,7 @@ void loop()
                 // change command every 100 ms
                 if(!sendCommand)
                 {
-                    if (millis() - lastTime > 200)
+                    if (millis() - lastTime > 150)
                     {
                         if (lastIsGotCmsInfo != isGotCMSInfo) // check if the flow is after request info, to prevent increment the commandSequence
                         {
