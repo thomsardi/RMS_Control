@@ -2013,6 +2013,7 @@ void loop()
         // Serial.println("is Update = " + String(isUpdate));
         if(isUpdate)
         {
+            Serial.println("Data is Complete.. Pushing to Database");
             #ifdef AUTO_POST
                 String phpName = "update.php";
                 String link = serverName + phpName;
@@ -2027,7 +2028,7 @@ void loop()
                 Serial.println(httpResponseCode);
                 http.end();
             #endif
-            Serial.println("Data is Complete.. Pushing to Database");
+            
         }
     }
 
@@ -2357,7 +2358,13 @@ void loop()
                     if (dataCollectionCommand.exec == false)
                     {
                         resetUpdater();
-                        restartCMSViaPin();
+                        cmsRestartCommand.bid = 255;
+                        cmsRestartCommand.restart = 1;
+                        sendRequest(cmsRestartCommand.bid, 11);
+                        cmsRestartCommand.bid = 0;
+                        cmsRestartCommand.restart = 0;
+                        isRxBufferEmpty = false;
+                        // restartCMSViaPin();
                         sendCommand = false;
                         isCmsRestartPin = false;   
                         reInitCellData();              
