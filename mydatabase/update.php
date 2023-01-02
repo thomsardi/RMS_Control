@@ -11,6 +11,7 @@ $vcell = $data->vcell;
 $temp = $data->temp;
 $pack = $data->pack;
 $wake_status = $data->wake_status;
+$door_status = $data->door_status;
 $tableName = $frameName;
 $column_list = "";
 $value_list = "";
@@ -94,7 +95,12 @@ $column_list = "";
 $value_list = "";
 
 $columns .= "wake_status";
+$columns .= ",";
 $values .= $wake_status;
+$values .= ",";
+
+$columns .= "door_status";
+$values .= $door_status;
 
 $conn = mysqli_connect("localhost", "root", "", $databaseName);
 $sql = "INSERT INTO $tableName ($columns) VALUES ($values)";

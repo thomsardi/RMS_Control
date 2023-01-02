@@ -27,6 +27,7 @@ String JsonManager::buildSingleJsonData(const CellData &cellData)
         vpack.add(cellData.pack[k]);
     }
     doc["wake_status"] = cellData.status;
+    doc["door_status"] = cellData.door;
     serializeJson(doc, result);
     return result;
 }
@@ -58,6 +59,7 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
             vpack.add(cellData[i].pack[k]);
         }
         cms_0["wake_status"] = cellData[i].status;
+        cms_0["door_status"] = cellData[i].door;
     }
     serializeJson(doc, result);
     return result;

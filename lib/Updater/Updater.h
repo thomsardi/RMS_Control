@@ -11,7 +11,7 @@ class Updater
         void updateVcell();
         void updateTemp();
         void updateVpack();
-        void updateWakeStatus();
+        void updateStatus();
         void resetUpdater();
     private:
         void resetUpdateStatus();
@@ -20,7 +20,7 @@ class Updater
         int _isVcellUpdated;
         int _isTempUpdated;
         int _isVpackUpdated;
-        int _isWakeStatusUpdated;
+        int _isStatusUpdated;
 };
 
 #endif

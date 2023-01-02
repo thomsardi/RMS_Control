@@ -84,6 +84,7 @@ $sql_create_table = "CREATE TABLE $frameName (
  `vp2` int(11) NOT NULL,
  `vp3` int(11) NOT NULL,
  `wake_status` int(11) NOT NULL,
+ `door_status` int(11) NOT NULL,
  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
 

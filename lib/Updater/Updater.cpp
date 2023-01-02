@@ -29,7 +29,7 @@ void Updater::updateVcell()
     {
         _isTempUpdated = false;
         _isVpackUpdated = false;
-        _isWakeStatusUpdated = false;
+        _isStatusUpdated = false;
     }
     _isVcellUpdated = true;
     Serial.println("Vcell Updated");
@@ -41,7 +41,7 @@ void Updater::updateTemp()
     {
         _isVcellUpdated = false;
         _isVpackUpdated = false;
-        _isWakeStatusUpdated = false;
+        _isStatusUpdated = false;
 
     }
     _isTempUpdated = true;
@@ -54,22 +54,22 @@ void Updater::updateVpack()
     {
         _isVcellUpdated = false;
         _isTempUpdated = false;
-        _isWakeStatusUpdated = false;
+        _isStatusUpdated = false;
     }
     _isVpackUpdated = true;
     Serial.println("Vpack Updated");
 }
 
-void Updater::updateWakeStatus()
+void Updater::updateStatus()
 {
-    if (_isWakeStatusUpdated)
+    if (_isStatusUpdated)
     {
         _isVcellUpdated = false;
         _isTempUpdated = false;
         _isVpackUpdated = false;
     }
-    _isWakeStatusUpdated = true;
-    Serial.println("Wake Updated");
+    _isStatusUpdated = true;
+    Serial.println("Status Updated");
 }
 
 void Updater::resetUpdateStatus()
@@ -77,13 +77,13 @@ void Updater::resetUpdateStatus()
     _isVcellUpdated = false;
     _isTempUpdated = false;
     _isVpackUpdated = false;
-    _isWakeStatusUpdated = false;
+    _isStatusUpdated = false;
 }
 
 int Updater::checkDataCompleted()
 {
     int status = 0;
-    if (_isVcellUpdated && _isTempUpdated && _isVpackUpdated && _isWakeStatusUpdated)
+    if (_isVcellUpdated && _isTempUpdated && _isVpackUpdated && _isStatusUpdated)
     {
         status = 1;
     }

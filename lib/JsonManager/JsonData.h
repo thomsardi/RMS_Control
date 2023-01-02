@@ -8,6 +8,7 @@ struct CellData
     int32_t temp[9] = {0};
     int32_t pack[3] = {0};
     int status = 0;
+    int door = 0;
 };
 
 struct RMSInfo
