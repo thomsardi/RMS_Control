@@ -22,6 +22,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 #include <ESPmDNS.h>
+#include <LedAnimation.h>
 
 #define RXD2 16
 #define TXD2 17
@@ -43,7 +44,7 @@
 #define NUM_LEDS 10
 #define merah 202, 1, 9
 
-#define AUTO_POST 1 //comment to disable server auto post
+// #define AUTO_POST 1 //comment to disable server auto post
 
 // #define REVERSED 1
 
@@ -96,6 +97,7 @@ String hostName = "rms-battery1-rnd-room";
 AsyncWebServer server(80);
 JsonManager jsonManager;
 RMSManager rmsManager;
+LedAnimation ledAnimation;
 Updater updater[8];
 
 CellData cellData[8];
@@ -117,6 +119,21 @@ CMSWakeup cmsWakeup;
 LedCommand ledCommand;
 CMSRestartCommand cmsRestartCommand;
 RMSRestartCommand rmsRestartCommand;
+
+enum CommandType {
+    VCELL = 0,
+    TEMP = 1,
+    VPACK = 2,
+    CMSSTATUS = 3,
+    CMSREADBALANCINGSTATUS = 4,
+    LED = 5,
+    CMSINFO = 6,
+    CMSFRAMEWRITE = 7,
+    BALANCINGWRITE = 8,
+    SHUTDOWN = 9,
+    WAKEUP = 10,
+    RESTART = 11
+};
 
 int dataComplete = 0;
 
@@ -914,6 +931,7 @@ int readAddressing(const String &input)
             if (respon > 0)
             {
                 addressList.push_back(bid);
+                ledAnimation.setLedGroupNumber(addressList.size());
                 status = 1;
             }
         }
@@ -1471,59 +1489,81 @@ void evalCommand(String input)
         dataCollectionCommand.exec = false;
         cmsRestartCommand.bid = 255;
         cmsRestartCommand.restart = 1;
+        ledAnimation.restart();
         // restartCMSViaPin();
+    }
+}
+
+void convertLedDataToLedCommand(const LedData &ledData, LedCommand &ledCommand)
+{
+    ledCommand.bid = addressList.at(ledData.currentGroup);
+    ledCommand.ledset = 1;
+    ledCommand.num_of_led = 8;
+    for (size_t i = 0; i < ledCommand.num_of_led; i++)
+    {
+        ledCommand.red[i] = ledData.red[i];
+        ledCommand.green[i] = ledData.green[i];
+        ledCommand.blue[i] = ledData.blue[i];
     }
 }
 
 int sendRequest(int bid, int sequence)
 {
     int status = 0;
+    LedData ledData;
+    LedCommand _ledCommand;
     switch(sequence) {
-    case 0:
+    case VCELL:
         sendVcellRequest(bid);
         status = 1;
         break;
-    case 1:
+    case TEMP:
         sendTempRequest(bid);
         status = 1;
         break;
-    case 2:
+    case VPACK:
         sendVpackRequest(bid);
         status = 1;
         break;  
-    case 3:
+    case CMSSTATUS:
         sendCMSStatusRequest(bid);
         status = 1;
         break;
-    case 4:
+    case CMSREADBALANCINGSTATUS:
         sendCMSReadBalancingStatus(bid);
         status = 1;
         break;
-    case 5:
+    case LED:
+        ledData = ledAnimation.update();
+        if(ledData.currentGroup >= 0)
+        {
+            convertLedDataToLedCommand(ledData, _ledCommand);
+        }
+        sendLedRequest(_ledCommand); //local variable ledCommand
+        // sendLedRequest(ledCommand); //global variable ledCommand
+        status = 1;
+        break;
+    case CMSINFO:
         sendCMSInfoRequest(bid);
         status = 1;
         break;   
-    case 6:
+    case CMSFRAMEWRITE:
         sendCMSFrameWriteRequest(frameWrite);
         status = 1;
         break;
-    case 7:
+    case BALANCINGWRITE:
         sendBalancingWriteRequest(cellBalancingCommand);
         status = 1;
         break;
-    case 8:
+    case SHUTDOWN:
         sendCMSShutDownRequest(cmsShutDown);
         status = 1;
         break;  
-    case 9:
+    case WAKEUP:
         sendCMSWakeupRequest(cmsWakeup);
         status = 1;
         break;
-    case 10:
-        sendLedRequest(ledCommand);
-        status = 1;
-        break;
-    case 11:
+    case RESTART:
         sendCMSRestartRequest(cmsRestartCommand);
         status = 1;
         break;
@@ -1675,6 +1715,8 @@ void setup()
     digitalWrite(relay[1], HIGH);
     setShiftRegisterState();
     declareStruct();
+    ledAnimation.setLedGroupNumber(addressList.size());
+    ledAnimation.setLedStringNumber(8);
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
 
@@ -1917,6 +1959,9 @@ void loop()
     int isResetSerialTimer = false;
     int serialResponse = 0;
     int qty;
+    // LedData ledData = ledAnimation.update();
+    // Serial.println("Current Group : " + String(ledData.currentGroup));
+    // Serial.println("Current String : " + String(ledData.currentString));
     if (alarmCommand.buzzer)
     {
         if (millis() - lastBuzzer < 1000)
@@ -2032,7 +2077,7 @@ void loop()
         }
     }
 
-    if (commandSequence > 4)
+    if (commandSequence > 5)
     {
         commandSequence = 0;
         deviceAddress++;
@@ -2048,7 +2093,7 @@ void loop()
         lastReceivedSerialData = millis();
     }
 
-    if (millis() - lastReceivedSerialData > 50)
+    if (millis() - lastReceivedSerialData > 100)
     {
         // Serial.println("No Serial 2 Data");
         isRxBufferEmpty = true;
@@ -2094,7 +2139,7 @@ void loop()
                 {
                     if (dataCollectionCommand.exec == false)
                     {
-                        sendRequest(frameWrite.bid, 6);
+                        sendRequest(frameWrite.bid, CMSFRAMEWRITE);
                         isRxBufferEmpty = false;
                         sendCommand = false;
                         frameWrite.bid = 0;
@@ -2137,7 +2182,7 @@ void loop()
                 {
                     if (dataCollectionCommand.exec == false)
                     {
-                        sendRequest(cellBalancingCommand.bid, 7);
+                        sendRequest(cellBalancingCommand.bid, BALANCINGWRITE);
                         isRxBufferEmpty = false;
                         sendCommand = false;
                         cellBalancingCommand.bid = 0;
@@ -2181,7 +2226,7 @@ void loop()
                 {
                     if (dataCollectionCommand.exec == false)
                     {
-                        sendRequest(ledCommand.bid, 10);
+                        sendRequest(ledCommand.bid, LED);
                         isRxBufferEmpty = false;
                         sendCommand = false;
                         ledCommand.bid = 0;
@@ -2233,7 +2278,7 @@ void loop()
                 {
                     if(dataCollectionCommand.exec == false)
                     {
-                        sendRequest(cmsShutDown.bid, 8);
+                        sendRequest(cmsShutDown.bid, SHUTDOWN);
                         isRxBufferEmpty = false;
                         sendCommand = false;
                         cmsShutDown.bid = 0;
@@ -2279,7 +2324,7 @@ void loop()
                 {
                     if(dataCollectionCommand.exec == false)
                     {
-                        sendRequest(cmsWakeup.bid, 9);
+                        sendRequest(cmsWakeup.bid, WAKEUP);
                         isRxBufferEmpty = false;
                         sendCommand = false;
                         cmsWakeup.bid = 0;
@@ -2319,7 +2364,7 @@ void loop()
                     if (dataCollectionCommand.exec == false)
                     {
                         resetUpdater();
-                        sendRequest(cmsRestartCommand.bid, 11);
+                        sendRequest(cmsRestartCommand.bid, RESTART);
                         isRxBufferEmpty = false;
                         sendCommand = false;
                         cmsRestartCommand.bid = 0;
@@ -2360,7 +2405,7 @@ void loop()
                         resetUpdater();
                         cmsRestartCommand.bid = 255;
                         cmsRestartCommand.restart = 1;
-                        sendRequest(cmsRestartCommand.bid, 11);
+                        sendRequest(cmsRestartCommand.bid, RESTART);
                         cmsRestartCommand.bid = 0;
                         cmsRestartCommand.restart = 0;
                         isRxBufferEmpty = false;
@@ -2448,7 +2493,7 @@ void loop()
                     {
                         if(isRxBufferEmpty && !Serial2.available())
                         {
-                            sendRequest(addressList.at(deviceAddress), 5);
+                            sendRequest(addressList.at(deviceAddress), CMSINFO);
                             isRxBufferEmpty = false;
                             sendCommand = false;
                             if (deviceAddress >= (addressList.size() - 1)) //check if deviceAddress is in the last index
@@ -2482,7 +2527,7 @@ void loop()
                 // change command every 100 ms
                 if(!sendCommand)
                 {
-                    if ((millis() - lastTime > 100) && isRxBufferEmpty == true)
+                    if ((millis() - lastTime > 200) && isRxBufferEmpty == true)
                     {
                         if (lastIsGotCmsInfo != isGotCMSInfo) // check if the flow is after request info, to prevent increment the commandSequence
                         {
