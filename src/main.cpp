@@ -31,22 +31,22 @@
 #define I2C_SCL 32
 
 #define LED_PIN 27
-// Original pin mapping
-// #define SERIAL_DATA 12
-// #define SHCP 14
-// #define STCP 13
-
-// Pin mapping edit
-#define SERIAL_DATA 14
-#define SHCP 13
-#define STCP 12
 
 #define NUM_LEDS 10
-#define merah 202, 1, 9
 
 // #define AUTO_POST 1 //comment to disable server auto post
 
-// #define REVERSED 1
+#define GREEN_BOARD 1 //uncomment to use green board laminate room
+
+#ifdef GREEN_BOARD
+    #define SERIAL_DATA 12
+    #define SHCP 14
+    #define STCP 13
+#else
+    #define SERIAL_DATA 14
+    #define SHCP 13
+    #define STCP 12
+#endif
 
 int SET;
 int cell[45];
