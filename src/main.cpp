@@ -34,9 +34,9 @@
 
 #define NUM_LEDS 10
 
-// #define AUTO_POST 1 //comment to disable server auto post
+#define AUTO_POST 1 //comment to disable server auto post
 
-#define GREEN_BOARD 1 //uncomment to use green board laminate room
+// #define GREEN_BOARD 1 //uncomment to use green board laminate room
 
 #ifdef GREEN_BOARD
     #define SERIAL_DATA 12
