@@ -41,6 +41,7 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_0 = cms.createNestedObject();
+        cms_0["msgcount"] = cellData[i].msgCount;
         cms_0["frame_name"] = cellData[i].frameName;
         cms_0["bid"] = cellData[i].bid;
         JsonArray vcell = cms_0.createNestedArray("vcell");

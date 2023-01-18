@@ -2,6 +2,7 @@
 
 struct CellData
 {
+    uint16_t msgCount = 0;
     String frameName = "unspecified";
     int bid = 0;
     int vcell[45] = {0};

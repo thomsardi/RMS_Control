@@ -71,6 +71,7 @@ int stcp = 13;
 
 int lcdColumns = 16;
 int lcdRows = 2;
+uint16_t msgCount[16];
 
 uint8_t ledDIN = 27;
 
@@ -82,11 +83,11 @@ CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
 // const char *ssid = "abcde";
 const char *password = "sundaya22";
-const char *host = "192.168.2.92";
+const char *host = "192.168.2.132";
 // const char *host = "desktop-gu3m4fp";
 
 // Set your Static IP address
-IPAddress local_ip(192, 168, 2, 200);
+IPAddress local_ip(192, 168, 2, 188);
 // Set your Gateway IP address
 IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -166,9 +167,8 @@ unsigned long lastReceivedSerialData = 0;
 unsigned long lastProcessResponse = 0;
 String commandString;
 String responseString;
-String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-String serverName = "http://192.168.2.92/mydatabase/";
+String serverName = "http://192.168.2.132/mydatabase/";
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
 
 void reInitCellData()
@@ -328,6 +328,8 @@ int readVcell(const String &input)
                     Serial.println("Vcell " + String(i+1) + " = " + String(cell[i]));
                 }
                 isAllDataCaptured = true;
+                msgCount[startIndex]++;
+                cellData[startIndex].msgCount = msgCount[startIndex];
             }
         }
         else
@@ -480,6 +482,8 @@ int readTemp(const String &input)
                     Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
                 }
                 isAllDataCaptured = true;
+                msgCount[startIndex]++;
+                cellData[startIndex].msgCount = msgCount[startIndex];
             }
             
         }
@@ -656,6 +660,8 @@ int readVpack(const String &input)
                     }
                 }
                 isAllDataCaptured = true;
+                msgCount[startIndex]++;
+                cellData[startIndex].msgCount = msgCount[startIndex];
             }
             
         }
@@ -1277,7 +1283,7 @@ void getDeviceStatus(int id)
 
 }
 
-void performAddressingTest2()
+void addressingExec()
 {
     isAddressingCompleted = 0;
     
@@ -1304,58 +1310,6 @@ void performAddressingTest2()
         serializeJson(doc, output);
         Serial2.print(output);
         Serial2.print('\n');
-        // String serialIn = "";
-        // StaticJsonDocument<128> doc;
-        // while(isRetry)
-        // {
-        //     // Serial.println(serialIn);
-        //     if (timeout > 50)
-        //     {
-        //         break;
-        //     }
-        //     bool isJsonCompleted = false;
-        //     while(Serial2.available())
-        //     {
-        //         char in = Serial2.read();
-        //         if (in != '\n')
-        //         {
-        //             serialIn += in;
-        //         }
-        //         else
-        //         {
-        //             deserializeJson(doc, serialIn);
-        //             isJsonCompleted = true;
-        //         }
-        //     }
-        //     if(isJsonCompleted)
-        //     {
-        //         if(doc.containsKey("BID_STATUS"))
-        //         {
-        //             isRetry = false;
-        //             Serial.println("BID : " + String(bid));
-        //             DynamicJsonDocument docBattery(1024);
-        //             String output;
-        //             docBattery["BID"] = bid;
-        //             docBattery["SR"] = x;
-        //             serializeJson(docBattery, output);
-        //             Serial2.print(output);
-        //             Serial2.print('\n');
-        //             isJsonCompleted = false;
-        //             break;
-        //         }
-        //         else
-        //         {
-        //             int result = readAddressing(serialIn);
-        //             Serial.println("Status Addressing = " + String(result));
-        //         }
-        //     }
-        //     else
-        //     {
-        //         timeout++;
-        //     }
-        //     delay(10);
-        // }
-        // serializeJson(docBattery, Serial2);
         Serial.println("===============xxxxxxxxx===========");
         // delay(200);
         // sr.setAllLow();
@@ -1534,13 +1488,19 @@ int sendRequest(int bid, int sequence)
         status = 1;
         break;
     case LED:
-        ledData = ledAnimation.update();
-        if(ledData.currentGroup >= 0)
+        if (ledAnimation.isRunning())
         {
-            convertLedDataToLedCommand(ledData, _ledCommand);
+            ledData = ledAnimation.update();
+            if(ledData.currentGroup >= 0)
+            {
+                convertLedDataToLedCommand(ledData, _ledCommand);
+            }
+            sendLedRequest(_ledCommand); //local variable ledCommand
         }
-        sendLedRequest(_ledCommand); //local variable ledCommand
-        // sendLedRequest(ledCommand); //global variable ledCommand
+        else
+        {
+            sendLedRequest(ledCommand); //global variable ledCommand
+        }
         status = 1;
         break;
     case CMSINFO:
@@ -1633,10 +1593,10 @@ void setup()
     delay(100);
     WiFi.setHostname(hostName.c_str());
     WiFi.mode(WIFI_STA);
-    // if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
-    // {
-    //     Serial.println("STA Failed to configure");
-    // }
+    if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
+    {
+        Serial.println("STA Failed to configure");
+    }
     WiFi.begin(ssid, password);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
@@ -1717,6 +1677,7 @@ void setup()
     declareStruct();
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
+    // ledAnimation.run();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
 
@@ -1775,6 +1736,10 @@ void setup()
     {
         Serial.println("post-test");
         request->send(200, "text/plain", "Test Post"); });
+
+    server.onNotFound([](AsyncWebServerRequest *request) {
+        request->send(404);
+    });
 
     AsyncCallbackJsonWebHandler *setBalancingHandler = new AsyncCallbackJsonWebHandler("/set-balancing", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -2077,7 +2042,7 @@ void loop()
         }
     }
 
-    if (commandSequence > 5)
+    if (commandSequence > 4)
     {
         commandSequence = 0;
         deviceAddress++;
@@ -2112,7 +2077,7 @@ void loop()
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
         // performAddressing();
-        performAddressingTest2();
+        addressingExec();
         addressingCommand.exec = 0;
         sendCommand = true;
         Serial.println("Addressing Finished");
@@ -2482,7 +2447,14 @@ void loop()
                     {
                         if (isRxBufferEmpty && !Serial2.available())
                         {
-                            sendRequest(addressList.at(deviceAddress), commandSequence);
+                            if (ledAnimation.isRunning())
+                            {
+                                sendRequest(addressList.at(deviceAddress), LED);
+                            }
+                            else
+                            {
+                                sendRequest(addressList.at(deviceAddress), commandSequence);
+                            }
                             isRxBufferEmpty = false;
                             lastTime = millis();
                             lastReceivedSerialData = millis();

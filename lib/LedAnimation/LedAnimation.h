@@ -21,8 +21,12 @@ class LedAnimation {
         void setLedGroupNumber(size_t groupNumber = 0);
         void setLedStringNumber(size_t stringNumber = 0);
         void restart();
+        void run();
+        void stop();
+        bool isRunning();
     private :
         void resetLedData();
+        bool _isRun = false;
         size_t _groupNumber = -1;
         size_t _stringNumber = -1;
         int _currentGroup = -1;
