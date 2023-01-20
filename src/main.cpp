@@ -34,7 +34,7 @@
 
 #define NUM_LEDS 10
 
-#define AUTO_POST 1 //comment to disable server auto post
+// #define AUTO_POST 1 //comment to disable server auto post
 
 // #define GREEN_BOARD 1 //uncomment to use green board laminate room
 
@@ -299,11 +299,13 @@ String arrToStr(T a[], int len)
 
 int readAddressingResponse(const String &input)
 {
+    // Serial.println("Read BID STATUS");
     int status = -1;
     StaticJsonDocument<32> doc;
     DeserializationError error = deserializeJson(doc, input);
 
     if (error) {
+        // Serial.println("Read BID STATUS Error");
         Serial.print("deserializeJson() failed: ");
         Serial.println(error.c_str());
         return status;
@@ -314,6 +316,54 @@ int readAddressingResponse(const String &input)
         return status;
     }
     status = doc["BID_STATUS"]; // 1
+    return status;
+}
+
+int readAddressing(const String &input)
+{
+    // Serial.println("Read Addressing");
+    int status = -1;
+    int bid = 0;
+    int respon = 0;
+    StaticJsonDocument<128> doc;
+
+    DeserializationError error = deserializeJson(doc, input);
+
+    if (error) {
+        // Serial.println("Read Addressing Error");
+        Serial.println(input);
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+
+    // JsonObject object = doc.as<JsonObject>();
+    // Serial.println("Read Addressing Deserialize No Error");
+    if(!doc.isNull())
+    {
+        if(doc.containsKey("BID") && doc.containsKey("RESPONSE"))
+        {
+            // Serial.println("Contain BID and RESPONSE");
+            bid = doc["BID"];
+            int respon = doc["RESPONSE"];
+            if (respon > 0)
+            {
+                addressList.push_back(bid);
+                ledAnimation.setLedGroupNumber(addressList.size());
+                status = 1;
+                size_t num = addressList.size();
+                Serial.println("Address number : " + String(num));
+            }
+        }
+        else
+        {
+            return status;
+        }
+    }
+    else
+    {
+        return status;
+    }
     return status;
 }
 
@@ -340,16 +390,12 @@ int readVcell(const String &input)
     // Serial.println(jsonDoc);
     JsonObject object = docBattery.as<JsonObject>();
     if (!object.isNull())
-    {
-        
-        if (docBattery.containsKey("BID"))
+    {        
+        if (docBattery.containsKey("BID") && docBattery.containsKey("VCELL"))
         {
             bid = docBattery["BID"];
             startIndex = bid - 1;
             cellData[startIndex].bid = bid;
-        }
-        if (docBattery.containsKey("VCELL"))
-        {
             // Serial.println("Contains key VCELL");
             JsonArray jsonArray = docBattery["VCELL"].as<JsonArray>();
             // int arrSize = sizeof(docBattery["VCELL"]) / sizeof(docBattery["VCELL"][0]);
@@ -496,14 +542,11 @@ int readTemp(const String &input)
     JsonObject object = docBattery.as<JsonObject>();
     if (!object.isNull())
     {
-        if (docBattery.containsKey("BID"))
+        if (docBattery.containsKey("BID") && docBattery.containsKey("TEMP"))
         {
             bid = docBattery["BID"];
             startIndex = bid - 1;
             cellData[startIndex].bid = bid;
-        }
-        if (docBattery.containsKey("TEMP"))
-        {
             // Serial.println("Contain TEMP key value");
             JsonArray jsonArray = docBattery["TEMP"].as<JsonArray>();
             int arrSize = jsonArray.size();
@@ -669,13 +712,11 @@ int readVpack(const String &input)
     // Serial.println(jsonDoc);
     if (!object.isNull())
     {
-        if (docBattery.containsKey("BID"))
+        if (docBattery.containsKey("BID") && docBattery.containsKey("VPACK"))
         {
             bid = docBattery["BID"];
             startIndex = bid - 1;
-        }
-        if (docBattery.containsKey("VPACK"))
-        {
+
             // Serial.println("Contain VPACK key Value");
             JsonArray jsonArray = docBattery["VPACK"].as<JsonArray>();
             int arrSize = jsonArray.size();
@@ -843,7 +884,12 @@ int readLed(const String &input)
         if (docBattery.containsKey("LEDSET"))
         {
             // status = docBattery["STATUS"];
-            status = 1;
+            // Serial.println("Contain LEDSET");
+            status = docBattery["LEDSET"];
+        }
+        else
+        {
+            return status;
         }
     }
     return status;
@@ -875,6 +921,10 @@ int readFrameWriteResponse(const String &input)
         {
             // status = docBattery["status"];
             status = 1;
+        }
+        else
+        {
+            return status;
         }
     }
     return status;
@@ -946,50 +996,6 @@ int readCMSInfo(const String &input)
     return status;
 }
 
-int readAddressing(const String &input)
-{
-    int status = -1;
-    int bid = 0;
-    int respon = 0;
-    StaticJsonDocument<128> doc;
-
-    DeserializationError error = deserializeJson(doc, input);
-
-    if (error) {
-        Serial.println("Read Addressing");
-        Serial.println(input);
-        Serial.print("deserializeJson() failed: ");
-        Serial.println(error.c_str());
-        return status;
-    }
-
-    JsonObject object = doc.as<JsonObject>();
-
-    if(!doc.isNull())
-    {
-        if(doc.containsKey("BID") && doc.containsKey("RESPONSE"))
-        {
-            bid = doc["BID"];
-            int respon = doc["RESPONSE"];
-            if (respon > 0)
-            {
-                addressList.push_back(bid);
-                ledAnimation.setLedGroupNumber(addressList.size());
-                status = 1;
-            }
-        }
-        else
-        {
-            return status;
-        }
-    }
-    else
-    {
-        return status;
-    }
-    return status;
-}
-
 int getBit(int pos, int data)
 {
   if (pos > 7 & pos < 0)
@@ -1015,6 +1021,11 @@ int readCMSBalancingResponse(const String &input)
         return status;
     }
 
+    if (!(doc.containsKey("RBAL1.1") && doc.containsKey("RBAL2.1") && doc.containsKey("RBAL3.1")))
+    {
+        return status;
+    }
+
     if (doc.containsKey("BID"))
     {
         bid = doc["BID"];
@@ -1022,11 +1033,6 @@ int readCMSBalancingResponse(const String &input)
         cellBalancingStatus[startIndex].bid = bid;
     }
     else
-    {
-        return status;
-    }
-
-    if (!(doc.containsKey("RBAL1.1") && doc.containsKey("RBAL2.1") && doc.containsKey("RBAL3.1")))
     {
         return status;
     }
@@ -1099,12 +1105,6 @@ int readCMSBQStatusResponse(const String &input)
         return status;
     }
 
-    if(!doc.containsKey("BID"))
-    {
-        // Serial.println("Does not contain BID");
-        return status;
-    }
-
     if(!doc.containsKey("WAKE_STATUS"))
     {
         // Serial.println("Does not contain WAKE_STATUS");
@@ -1114,6 +1114,12 @@ int readCMSBQStatusResponse(const String &input)
     if(!doc.containsKey("DOOR_STATUS"))
     {
         // Serial.println("Does not contain WAKE_STATUS");
+        return status;
+    }
+
+    if(!doc.containsKey("BID"))
+    {
+        // Serial.println("Does not contain BID");
         return status;
     }
 
@@ -1516,40 +1522,55 @@ int sendRequest(int bid, int sequence)
 int checkResponse(const String &input)
 {
     int status = 0;
-    if(readAddressingResponse(input))
+    Serial.println(input);
+    if(readVcell(input) >= 0)
     {
-        status = 1;
-    }
-    else if(readVcell(input) >= 0)
-    {
+        // Serial.println("VCELL");
         status = 1;
     }
     else if (readTemp(input) >= 0)
     {
+        // Serial.println("TEMP");
         status = 1;
     }
     else if (readVpack(input) >= 0)
     {
+        // Serial.println("VPACK");
         status = 1;
     }
     else if (readCMSInfo(input) >= 0)
     {
+        // Serial.println("CMSINFO");
         status = 1;
     }
     else if (readFrameWriteResponse(input) >= 0)
     {
+        // Serial.println("FRAME");
         status = 1;
     }
     else if (readCMSBalancingResponse(input) >= 0)
     {
+        // Serial.println("BAL");
         status = 1;
     }
     else if (readCMSBQStatusResponse(input) >= 0)
     {
+        // Serial.println("BQSTAT");
+        status = 1;
+    }
+    else if (readLed(input) >= 0)
+    {
+        // Serial.println("LED");
         status = 1;
     }
     else if (readAddressing(input) >= 0)
     {
+        // Serial.println("ADDRESS RESPONSE");
+        status = 1;
+    }
+    else if(readAddressingResponse(input) >= 0)
+    {
+        // Serial.println("ADDRESS STATUS");
         status = 1;
     }
     return status;
@@ -1596,6 +1617,7 @@ void addressing(bool isFromBottom)
         
         if (isDataComplete)
         {
+            // Serial.println(serialData);
             if(checkResponse(serialData)) //if the response {"BID_STATUS" : 1}
             {
                 StaticJsonDocument<128> doc;
@@ -1634,6 +1656,7 @@ void addressing(bool isFromBottom)
         
         if (isDataComplete)
         {
+            // Serial.println(serialData);
             checkResponse(serialData);
         }
         Serial.println("===============xxxxxxxxx===========");
@@ -1753,7 +1776,7 @@ void setup()
     declareStruct();
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
-    // ledAnimation.run();
+    ledAnimation.run();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
 
@@ -2151,6 +2174,12 @@ void loop()
         // perform addressing
         // restartCMSViaPin();
         // delay(1000);
+        delay(100);
+        while (Serial2.available())
+        {
+            Serial2.read();
+        }
+        
         resetUpdater();
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
@@ -2526,8 +2555,10 @@ void loop()
                     {
                         if (isRxBufferEmpty && !Serial2.available())
                         {
+                            // Serial.println("Cycle : " + String(cycle));
                             if(!cycle)
                             {
+                                // Serial.println("command sequence");
                                 sendRequest(addressList.at(deviceAddress), commandSequence);
                                 isFromSequence = true;
                             }
@@ -2538,7 +2569,15 @@ void loop()
                             }
                             if(isGotCMSInfo)
                             {
-                                cycle = ~cycle;
+                                if(ledAnimation.isRunning())
+                                {
+                                    cycle = !cycle;
+                                }
+                                else
+                                {
+                                    cycle = false;
+                                }
+                            
                             }                            
                             isRxBufferEmpty = false;
                             lastTime = millis();

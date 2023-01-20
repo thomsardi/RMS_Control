@@ -5,13 +5,13 @@ LedAnimation::LedAnimation()
 
 }
 
-LedAnimation::LedAnimation(size_t groupNumber, size_t stringNumber, bool isFromBottom)
+LedAnimation::LedAnimation(size_t groupNumber, size_t stringNumber, bool isLowerToHigher)
 {
     _groupNumber = groupNumber;
     _stringNumber = stringNumber;
-    _isFromBottom = isFromBottom;
+    _isLowerToHigher = isLowerToHigher;
     _isUp = true;
-    if (_isFromBottom)
+    if (_isLowerToHigher)
     {
         _currentGroup = 0; 
     }
@@ -44,7 +44,7 @@ void LedAnimation::setLedGroupNumber(size_t groupNumber)
         return;
     }
 
-    if(_isFromBottom)
+    if(_isLowerToHigher)
     {
         _groupNumber = groupNumber;
         _currentGroup = 0;
@@ -70,7 +70,7 @@ void LedAnimation::setLedStringNumber(size_t stringNumber)
 
 void LedAnimation::restart()
 {
-    if(_isFromBottom)
+    if(_isLowerToHigher)
     {
         _currentGroup = 0;
         _currentString = _stringNumber - 1;
@@ -149,12 +149,12 @@ LedData LedAnimation::update()
         if (_currentString < 0)
         {
             _currentString = _stringNumber - 1;
-            if(_isFromBottom)
+            if(_isLowerToHigher)
             {
                 _currentGroup++;
-                if (_currentGroup > 7)
+                if (_currentGroup >= _groupNumber)
                 {
-                    _currentGroup = 7;
+                    _currentGroup = _groupNumber - 1;
                     _currentString = 0;
                     _isUp = false;
                 }
@@ -177,7 +177,7 @@ LedData LedAnimation::update()
     {
         if (_currentString > 7) //check if it is in the end of the led string
         {
-            if(_isFromBottom)
+            if(_isLowerToHigher)
             {
                 _currentString = 0;
                 _currentGroup--;
