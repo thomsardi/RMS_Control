@@ -42,6 +42,7 @@ class JsonManager {
         int jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &cmsRestartCommand);
         int jsonCMSRestartPinParser(const char* jsonInput);
         int jsonRMSRestartParser(const char* jsonInput);
+
         private :
         int getBit(int pos, int data);
 };

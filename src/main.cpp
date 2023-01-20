@@ -42,10 +42,16 @@
     #define SERIAL_DATA 12
     #define SHCP 14
     #define STCP 13
+    #define DATABASE_IP "192.168.2.174"
+    #define SERVER_NAME "http://192.168.2.174/mydatabase/"
+    #define HOST_NAME "RMS-Laminate-Room"
 #else
     #define SERIAL_DATA 14
     #define SHCP 13
     #define STCP 12
+    #define DATABASE_IP "192.168.2.132"
+    #define SERVER_NAME "http://192.168.2.132/mydatabase/"
+    #define HOST_NAME "RMS-Rnd-Room"
 #endif
 
 int SET;
@@ -71,7 +77,6 @@ int stcp = 13;
 
 int lcdColumns = 16;
 int lcdRows = 2;
-uint16_t msgCount[16];
 
 uint8_t ledDIN = 27;
 
@@ -83,21 +88,25 @@ CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
 // const char *ssid = "abcde";
 const char *password = "sundaya22";
-<<<<<<< HEAD
-const char *host = "192.168.2.174";
-=======
-const char *host = "192.168.2.132";
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
-// const char *host = "desktop-gu3m4fp";
+const char *host = DATABASE_IP;
+// const char *host = "192.168.2.132";
+// const char *host = "192.168.2.174"; //green board
 
-// Set your Static IP address
-IPAddress local_ip(192, 168, 2, 188);
+
+#ifdef GREEN_BOARD
+    // Set your Static IP address
+    IPAddress local_ip(192, 168, 2, 200);
+#else
+    // Set your Static IP address
+    IPAddress local_ip(192, 168, 2, 188);
+#endif
+
 // Set your Gateway IP address
 IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(192, 168, 2, 1);        // optional
 IPAddress secondaryDNS(119, 18, 156, 10);       // optional
-String hostName = "RMS-Battery-Laminate-Room";
+String hostName = HOST_NAME;
 
 AsyncWebServer server(80);
 JsonManager jsonManager;
@@ -161,6 +170,9 @@ bool lastCMSWakeup = false;
 bool lastIsGotCmsInfo = false;
 bool lastLedset = false;
 bool isCmsRestartPin = false;
+bool cycle = false;
+bool isFromSequence = false;
+
 int isAddressingCompleted = 0;
 int commandSequence = 0;
 int deviceAddress = 1;
@@ -173,11 +185,7 @@ unsigned long lastProcessResponse = 0;
 String commandString;
 String responseString;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-<<<<<<< HEAD
-String serverName = "http://192.168.2.174/mydatabase/";
-=======
 String serverName = "http://192.168.2.132/mydatabase/";
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
 
 void reInitCellData()
@@ -289,6 +297,26 @@ String arrToStr(T a[], int len)
     return b;
 }
 
+int readAddressingResponse(const String &input)
+{
+    int status = -1;
+    StaticJsonDocument<32> doc;
+    DeserializationError error = deserializeJson(doc, input);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+
+    if (!doc.containsKey("BID_STATUS")) 
+    {
+        return status;
+    }
+    status = doc["BID_STATUS"]; // 1
+    return status;
+}
+
 int readVcell(const String &input)
 {
     int bid = -1;
@@ -337,13 +365,8 @@ int readVcell(const String &input)
                     Serial.println("Vcell " + String(i+1) + " = " + String(cell[i]));
                 }
                 isAllDataCaptured = true;
-<<<<<<< HEAD
                 // msgCount[startIndex]++;
                 // cellData[startIndex].msgCount = msgCount[startIndex];
-=======
-                msgCount[startIndex]++;
-                cellData[startIndex].msgCount = msgCount[startIndex];
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
             }
         }
         else
@@ -496,13 +519,8 @@ int readTemp(const String &input)
                     Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
                 }
                 isAllDataCaptured = true;
-<<<<<<< HEAD
                 // msgCount[startIndex]++;
                 // cellData[startIndex].msgCount = msgCount[startIndex];
-=======
-                msgCount[startIndex]++;
-                cellData[startIndex].msgCount = msgCount[startIndex];
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
             }
             
         }
@@ -679,13 +697,8 @@ int readVpack(const String &input)
                     }
                 }
                 isAllDataCaptured = true;
-<<<<<<< HEAD
                 // msgCount[startIndex]++;
                 // cellData[startIndex].msgCount = msgCount[startIndex];
-=======
-                msgCount[startIndex]++;
-                cellData[startIndex].msgCount = msgCount[startIndex];
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
             }
             
         }
@@ -1334,110 +1347,9 @@ void addressingExec()
         serializeJson(doc, output);
         Serial2.print(output);
         Serial2.print('\n');
-<<<<<<< HEAD
         Serial.println("===============xxxxxxxxx===========");
         // delay(200);
         // sr.setAllLow();
-    }
-    isAddressingCompleted = 1;
-}
-
-void addressing(bool isFromBottom)
-{
-    isAddressingCompleted = 0;
-
-    addressList.clear();
-    for (int i = 0; i < numOfShiftRegister; i++)
-    {
-        bool isRetry = 1;
-        int timeout = 0;
-        uint8_t x;
-        if(isFromBottom)
-        {
-            x = (8 * (numOfShiftRegister - i)) - 1; // 8 is number of shift register output
-        }
-        else
-        {
-            x = (8 * i) + 7;
-        }
-        
-        int bid = i + 1;         // id start from 1
-        sr.set(x, HIGH);
-        delay(100);
-        sr.set(x, LOW);
-        delay(400);
-        Serial.print("number = ");
-        Serial.println(x);
-        Serial.print("EHUB Number -> BMS === ");
-        Serial.println(bid);
-        // Serial.println(sr.get(x));
-        StaticJsonDocument<128> doc;
-        String output;
-        doc["BID_ADDRESS"] = bid;
-        doc["SR"] = x;
-        serializeJson(doc, output);
-        Serial2.print(output);
-        Serial2.print('\n');
-=======
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
-        Serial.println("===============xxxxxxxxx===========");
-        // delay(200);
-        // sr.setAllLow();
-    }
-    isAddressingCompleted = 1;
-}
-
-void performAddressingTest()
-{
-    isAddressingCompleted = 0;
-    
-    addressList.clear();
-    DynamicJsonDocument docBattery(1024);
-    for (int i = 0; i < numOfShiftRegister; i++)
-    {
-        bool isRetry = 1;
-        int timeout = 0;
-        // int x = (8 * i) + 7; // 8 is number of shift register output
-        int x = (8 * 0) + 7;
-        int bid = i + 1; // id start from 1
-        sr.set(x, HIGH);
-        delay(1000);
-        Serial.print("number = ");
-        Serial.println(x);
-        Serial.print("EHUB Number -> BMS === ");
-        Serial.println(bid);
-        sr.set(x, LOW);
-        delay(200);
-    }
-    isAddressingCompleted = 1;
-}
-
-void performAddressing()
-{
-    isAddressingCompleted = 0;
-    
-    addressList.clear();
-    DynamicJsonDocument docBattery(1024);
-    for (int i = 0; i < numOfShiftRegister; i++)
-    {
-        int x = (8 * i) + 7; // 8 is number of shift register output
-        int bid = i + 1; // id start from 1
-        sr.set(x, HIGH);
-        delay(2000);
-        Serial.print("number = ");
-        Serial.println(x);
-        Serial.print("EHUB Number -> BMS === ");
-        Serial.println(bid);
-        String output;
-        docBattery["BID"] = bid;
-        docBattery["SR"] = x;
-        serializeJson(docBattery, output);
-        Serial2.print(output);
-        Serial2.print('\n');
-        Serial.println("===============xxxxxxxxx===========");
-        delay(100);
-        sr.set(x, LOW);
-        delay(100);
     }
     isAddressingCompleted = 1;
 }
@@ -1604,7 +1516,11 @@ int sendRequest(int bid, int sequence)
 int checkResponse(const String &input)
 {
     int status = 0;
-    if(readVcell(input) >= 0)
+    if(readAddressingResponse(input))
+    {
+        status = 1;
+    }
+    else if(readVcell(input) >= 0)
     {
         status = 1;
     }
@@ -1638,6 +1554,96 @@ int checkResponse(const String &input)
     }
     return status;
 }
+
+void addressing(bool isFromBottom)
+{
+    isAddressingCompleted = 0;
+    int bidAddr = 1; // bid address start from 1
+    addressList.clear();
+    for (int i = 0; i < numOfShiftRegister; i++)
+    {
+        bool isDataComplete = false;
+        String serialData;
+        uint8_t x;
+        if(isFromBottom)
+        {
+            x = (8 * (numOfShiftRegister - i)) - 1; // Q7 is connected to addressing pin of CMS
+        }
+        else
+        {
+            x = (8 * i) + 7;
+        }
+        
+        Serial.print("number = ");
+        Serial.println(x);
+        sr.set(x, HIGH);
+        delay(100);
+        sr.set(x, LOW);
+        delay(100);
+        
+        while (Serial2.available()) //get for the response {"BID_STATUS" : 1}
+        {
+            char in = Serial2.read();
+            if (in == '\n')
+            {
+                isDataComplete = true;
+            }
+            else
+            {
+                serialData += in;
+            }
+        }
+        
+        if (isDataComplete)
+        {
+            if(checkResponse(serialData)) //if the response {"BID_STATUS" : 1}
+            {
+                StaticJsonDocument<128> doc;
+                String output;
+                doc["BID_ADDRESS"] = bidAddr;
+                doc["SR"] = x;
+                serializeJson(doc, output);
+                Serial2.print(output);
+                Serial2.print('\n');
+                Serial.print("EHUB Number -> BMS === ");
+                Serial.println(bidAddr);
+                bidAddr++;
+            }
+        }
+        else
+        {
+            Serial.println("No Response, Skip!");
+            continue;
+        }
+        serialData = "";
+        isDataComplete = false;
+        delay(100);
+
+        while (Serial2.available()) //check the addressing response {"BID" : n, "RESPONSE" : 1}
+        {
+            char in = Serial2.read();
+            if (in == '\n')
+            {
+                isDataComplete = true;
+            }
+            else
+            {
+                serialData += in;
+            }
+        }
+        
+        if (isDataComplete)
+        {
+            checkResponse(serialData);
+        }
+        Serial.println("===============xxxxxxxxx===========");
+        // Serial.println(sr.get(x));
+        // delay(200);
+        // sr.setAllLow();
+    }
+    isAddressingCompleted = 1;
+}
+
 
 void resetUpdater()
 {
@@ -2149,12 +2155,8 @@ void loop()
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
         // performAddressing();
-<<<<<<< HEAD
         // performAddressingTest2();
         addressing(true);
-=======
-        addressingExec();
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
         addressingCommand.exec = 0;
         sendCommand = true;
         Serial.println("Addressing Finished");
@@ -2524,20 +2526,20 @@ void loop()
                     {
                         if (isRxBufferEmpty && !Serial2.available())
                         {
-<<<<<<< HEAD
-                            sendRequest(addressList.at(deviceAddress), commandSequence);
-                            // sendRequest(addressList.at(deviceAddress), LED);
-                            // sendRequest(1, LED);
-=======
-                            if (ledAnimation.isRunning())
+                            if(!cycle)
                             {
-                                sendRequest(addressList.at(deviceAddress), LED);
+                                sendRequest(addressList.at(deviceAddress), commandSequence);
+                                isFromSequence = true;
                             }
                             else
                             {
-                                sendRequest(addressList.at(deviceAddress), commandSequence);
+                                sendRequest(addressList.at(deviceAddress), LED);
+                                isFromSequence = false;
                             }
->>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
+                            if(isGotCMSInfo)
+                            {
+                                cycle = ~cycle;
+                            }                            
                             isRxBufferEmpty = false;
                             lastTime = millis();
                             lastReceivedSerialData = millis();
@@ -2593,7 +2595,10 @@ void loop()
                             if (isGotCMSInfo) //if got cms info, sequencing command
                             {
                                 // Serial.println("Send Command timeout!");
-                                commandSequence++;
+                                if(isFromSequence)
+                                {
+                                    commandSequence++;
+                                }                           
                             } 
                             else
                             {
@@ -2618,6 +2623,8 @@ void loop()
             commandSequence = 0;
             lastIsGotCmsInfo = false;
             lastTime = millis();
+            cycle = false;
+            isFromSequence = false;
         }
         
     }
