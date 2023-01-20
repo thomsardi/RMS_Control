@@ -82,7 +82,7 @@ CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
 // const char *ssid = "abcde";
 const char *password = "sundaya22";
-const char *host = "192.168.2.92";
+const char *host = "192.168.2.174";
 // const char *host = "desktop-gu3m4fp";
 
 // Set your Static IP address
@@ -92,12 +92,12 @@ IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(192, 168, 2, 1);        // optional
 IPAddress secondaryDNS(119, 18, 156, 10);       // optional
-String hostName = "rms-battery1-rnd-room";
+String hostName = "RMS-Battery-Laminate-Room";
 
 AsyncWebServer server(80);
 JsonManager jsonManager;
 RMSManager rmsManager;
-LedAnimation ledAnimation;
+LedAnimation ledAnimation(8,8, true);
 Updater updater[8];
 
 CellData cellData[8];
@@ -137,6 +137,7 @@ enum CommandType {
 
 int dataComplete = 0;
 
+uint16_t msgCount[16];
 int addressListStorage[12];
 Vector<int> addressList(addressListStorage);
 
@@ -168,7 +169,7 @@ String commandString;
 String responseString;
 String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-String serverName = "http://192.168.2.92/mydatabase/";
+String serverName = "http://192.168.2.174/mydatabase/";
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
 
 void reInitCellData()
@@ -328,6 +329,8 @@ int readVcell(const String &input)
                     Serial.println("Vcell " + String(i+1) + " = " + String(cell[i]));
                 }
                 isAllDataCaptured = true;
+                // msgCount[startIndex]++;
+                // cellData[startIndex].msgCount = msgCount[startIndex];
             }
         }
         else
@@ -480,6 +483,8 @@ int readTemp(const String &input)
                     Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
                 }
                 isAllDataCaptured = true;
+                // msgCount[startIndex]++;
+                // cellData[startIndex].msgCount = msgCount[startIndex];
             }
             
         }
@@ -656,6 +661,8 @@ int readVpack(const String &input)
                     }
                 }
                 isAllDataCaptured = true;
+                // msgCount[startIndex]++;
+                // cellData[startIndex].msgCount = msgCount[startIndex];
             }
             
         }
@@ -1304,58 +1311,49 @@ void performAddressingTest2()
         serializeJson(doc, output);
         Serial2.print(output);
         Serial2.print('\n');
-        // String serialIn = "";
-        // StaticJsonDocument<128> doc;
-        // while(isRetry)
-        // {
-        //     // Serial.println(serialIn);
-        //     if (timeout > 50)
-        //     {
-        //         break;
-        //     }
-        //     bool isJsonCompleted = false;
-        //     while(Serial2.available())
-        //     {
-        //         char in = Serial2.read();
-        //         if (in != '\n')
-        //         {
-        //             serialIn += in;
-        //         }
-        //         else
-        //         {
-        //             deserializeJson(doc, serialIn);
-        //             isJsonCompleted = true;
-        //         }
-        //     }
-        //     if(isJsonCompleted)
-        //     {
-        //         if(doc.containsKey("BID_STATUS"))
-        //         {
-        //             isRetry = false;
-        //             Serial.println("BID : " + String(bid));
-        //             DynamicJsonDocument docBattery(1024);
-        //             String output;
-        //             docBattery["BID"] = bid;
-        //             docBattery["SR"] = x;
-        //             serializeJson(docBattery, output);
-        //             Serial2.print(output);
-        //             Serial2.print('\n');
-        //             isJsonCompleted = false;
-        //             break;
-        //         }
-        //         else
-        //         {
-        //             int result = readAddressing(serialIn);
-        //             Serial.println("Status Addressing = " + String(result));
-        //         }
-        //     }
-        //     else
-        //     {
-        //         timeout++;
-        //     }
-        //     delay(10);
-        // }
-        // serializeJson(docBattery, Serial2);
+        Serial.println("===============xxxxxxxxx===========");
+        // delay(200);
+        // sr.setAllLow();
+    }
+    isAddressingCompleted = 1;
+}
+
+void addressing(bool isFromBottom)
+{
+    isAddressingCompleted = 0;
+
+    addressList.clear();
+    for (int i = 0; i < numOfShiftRegister; i++)
+    {
+        bool isRetry = 1;
+        int timeout = 0;
+        uint8_t x;
+        if(isFromBottom)
+        {
+            x = (8 * (numOfShiftRegister - i)) - 1; // 8 is number of shift register output
+        }
+        else
+        {
+            x = (8 * i) + 7;
+        }
+        
+        int bid = i + 1;         // id start from 1
+        sr.set(x, HIGH);
+        delay(100);
+        sr.set(x, LOW);
+        delay(400);
+        Serial.print("number = ");
+        Serial.println(x);
+        Serial.print("EHUB Number -> BMS === ");
+        Serial.println(bid);
+        // Serial.println(sr.get(x));
+        StaticJsonDocument<128> doc;
+        String output;
+        doc["BID_ADDRESS"] = bid;
+        doc["SR"] = x;
+        serializeJson(doc, output);
+        Serial2.print(output);
+        Serial2.print('\n');
         Serial.println("===============xxxxxxxxx===========");
         // delay(200);
         // sr.setAllLow();
@@ -1633,10 +1631,10 @@ void setup()
     delay(100);
     WiFi.setHostname(hostName.c_str());
     WiFi.mode(WIFI_STA);
-    // if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
-    // {
-    //     Serial.println("STA Failed to configure");
-    // }
+    if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
+    {
+        Serial.println("STA Failed to configure");
+    }
     WiFi.begin(ssid, password);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
@@ -2059,6 +2057,8 @@ void loop()
         if(isUpdate)
         {
             Serial.println("Data is Complete.. Pushing to Database");
+            msgCount[i]++;
+            cellData[i].msgCount = msgCount[i];
             #ifdef AUTO_POST
                 String phpName = "update.php";
                 String link = serverName + phpName;
@@ -2093,7 +2093,7 @@ void loop()
         lastReceivedSerialData = millis();
     }
 
-    if (millis() - lastReceivedSerialData > 100)
+    if (millis() - lastReceivedSerialData > 50)
     {
         // Serial.println("No Serial 2 Data");
         isRxBufferEmpty = true;
@@ -2112,7 +2112,8 @@ void loop()
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
         // performAddressing();
-        performAddressingTest2();
+        // performAddressingTest2();
+        addressing(true);
         addressingCommand.exec = 0;
         sendCommand = true;
         Serial.println("Addressing Finished");
@@ -2483,6 +2484,8 @@ void loop()
                         if (isRxBufferEmpty && !Serial2.available())
                         {
                             sendRequest(addressList.at(deviceAddress), commandSequence);
+                            // sendRequest(addressList.at(deviceAddress), LED);
+                            // sendRequest(1, LED);
                             isRxBufferEmpty = false;
                             lastTime = millis();
                             lastReceivedSerialData = millis();
@@ -2527,7 +2530,7 @@ void loop()
                 // change command every 100 ms
                 if(!sendCommand)
                 {
-                    if ((millis() - lastTime > 200) && isRxBufferEmpty == true)
+                    if ((millis() - lastTime > 100) && isRxBufferEmpty == true)
                     {
                         if (lastIsGotCmsInfo != isGotCMSInfo) // check if the flow is after request info, to prevent increment the commandSequence
                         {

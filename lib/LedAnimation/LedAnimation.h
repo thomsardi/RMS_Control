@@ -16,7 +16,7 @@
 class LedAnimation {
     public :
         LedAnimation();
-        LedAnimation(size_t groupNumber, size_t stringNumber);
+        LedAnimation(size_t groupNumber, size_t stringNumber, bool isFromBottom = true);
         LedData update();
         void setLedGroupNumber(size_t groupNumber = 0);
         void setLedStringNumber(size_t stringNumber = 0);
@@ -29,6 +29,7 @@ class LedAnimation {
         int _currentString = -1;
         bool _isUp = true;
         bool _isGroupChanged = false;
+        bool _isFromBottom;
         LedData _ledData;
 };
 

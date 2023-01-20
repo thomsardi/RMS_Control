@@ -5,11 +5,20 @@ LedAnimation::LedAnimation()
 
 }
 
-LedAnimation::LedAnimation(size_t groupNumber, size_t stringNumber)
+LedAnimation::LedAnimation(size_t groupNumber, size_t stringNumber, bool isFromBottom)
 {
     _groupNumber = groupNumber;
-    _stringNumber= stringNumber;
-    _currentGroup = groupNumber - 1;
+    _stringNumber = stringNumber;
+    _isFromBottom = isFromBottom;
+    _isUp = true;
+    if (_isFromBottom)
+    {
+        _currentGroup = 0; 
+    }
+    else
+    {
+        _currentGroup = groupNumber - 1;
+    }
     _currentString = stringNumber - 1;
 }
 
@@ -19,8 +28,18 @@ void LedAnimation::setLedGroupNumber(size_t groupNumber)
     {
         return;
     }
-    _groupNumber = groupNumber;
-    _currentGroup = groupNumber - 1;
+
+    if(_isFromBottom)
+    {
+        _groupNumber = groupNumber;
+        _currentGroup = 0;
+    }
+    else
+    {
+        _groupNumber = groupNumber;
+        _currentGroup = groupNumber - 1;
+    }
+    
 }
 
 void LedAnimation::setLedStringNumber(size_t stringNumber)
@@ -31,12 +50,22 @@ void LedAnimation::setLedStringNumber(size_t stringNumber)
     }
     _stringNumber = stringNumber;
     _currentString = stringNumber - 1;
+      
 }
 
 void LedAnimation::restart()
 {
-    _currentGroup = _groupNumber - 1;
-    _currentString = _stringNumber - 1;
+    if(_isFromBottom)
+    {
+        _currentGroup = 0;
+        _currentString = _stringNumber - 1;
+    }
+    else
+    {
+        _currentGroup = _groupNumber - 1;
+        _currentString = _stringNumber - 1;
+    }
+    
     _isUp = true;
     _isGroupChanged = false;
     _ledData.currentGroup = _currentGroup;
@@ -57,6 +86,8 @@ LedData LedAnimation::update()
     {
         return ledData;
     }
+    // Serial.println("Group : " + String(_currentGroup));
+    // Serial.println("String : " + String(_currentString));
     _ledData.currentGroup = _currentGroup;
     _ledData.currentString = _currentString;
     ledData.currentGroup = _ledData.currentGroup;
@@ -93,35 +124,65 @@ LedData LedAnimation::update()
     {
         _currentString++;
     }
-    
-    
-    if(_isUp)
+
+    if (_isUp) // animation direction is from bottom to top
     {
         if (_currentString < 0)
         {
             _currentString = _stringNumber - 1;
-            _currentGroup--;
-            if (_currentGroup < 0)
+            if(_isFromBottom)
             {
-                _currentGroup = 0;
-                _currentString = 0;
-                _isUp = false;
+                _currentGroup++;
+                if (_currentGroup > 7)
+                {
+                    _currentGroup = 7;
+                    _currentString = 0;
+                    _isUp = false;
+                }
             }
+            else
+            {
+                _currentGroup--;
+                if (_currentGroup < 0)
+                {
+                    _currentGroup = 0;
+                    _currentString = 0;
+                    _isUp = false;
+                }
+            }
+            
             _isGroupChanged = true;
         }
     }
-    else
+    else //animation direction is from top to bottom
     {
-        if (_currentString > 7)
+        if (_currentString > 7) //check if it is in the end of the led string
         {
-            _currentString = 0;
-            _currentGroup++;
-            if (_currentGroup >= _groupNumber)
+            if(_isFromBottom)
             {
-                _currentGroup = _groupNumber - 1;
-                _currentString = _stringNumber - 1;
-                _isUp = true;
+                _currentString = 0;
+                _currentGroup--;
+                if (_currentGroup < 0)
+                {
+                    _currentGroup = 0;
+                    _currentString = _stringNumber - 1;
+                    _isUp = true;
+                }
             }
+            else
+            {
+                _currentString = 0;
+                _currentGroup++;
+                if (_currentGroup >= _groupNumber)
+                {
+                    _currentGroup = _groupNumber - 1;
+                    _currentString = _stringNumber - 1;
+                    _isUp = true;
+                }
+            }
+            
+            
+            
             _isGroupChanged = true;
         }
     }

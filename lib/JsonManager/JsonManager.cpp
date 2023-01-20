@@ -9,6 +9,7 @@ String JsonManager::buildSingleJsonData(const CellData &cellData)
 {
     String result;
     StaticJsonDocument<1536> doc; // for 8 object
+    doc["msg_count"] = cellData.msgCount;
     doc["frame_name"] = cellData.frameName;
     doc["bid"] = cellData.bid;
     JsonArray vcell = doc.createNestedArray("vcell");
@@ -41,6 +42,7 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_0 = cms.createNestedObject();
+        cms_0["msg_count"] = cellData[i].msgCount;
         cms_0["frame_name"] = cellData[i].frameName;
         cms_0["bid"] = cellData[i].bid;
         JsonArray vcell = cms_0.createNestedArray("vcell");
