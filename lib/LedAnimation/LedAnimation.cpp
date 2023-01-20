@@ -22,6 +22,21 @@ LedAnimation::LedAnimation(size_t groupNumber, size_t stringNumber, bool isFromB
     _currentString = stringNumber - 1;
 }
 
+void LedAnimation::run()
+{
+    _isRun = true;
+}
+
+void LedAnimation::stop()
+{
+    _isRun = false;
+}
+
+bool LedAnimation::isRunning()
+{
+    return _isRun;
+}
+
 void LedAnimation::setLedGroupNumber(size_t groupNumber)
 {
     if (groupNumber <= 0)
@@ -82,6 +97,10 @@ void LedAnimation::restart()
 LedData LedAnimation::update()
 {
     LedData ledData;
+    if(!_isRun)
+    {
+        return ledData;
+    }
     if (_groupNumber < 0 || _stringNumber < 0)
     {
         return ledData;

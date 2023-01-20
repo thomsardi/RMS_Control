@@ -1,5 +1,8 @@
-<?php
-$conn = mysqli_connect("localhost", "root", "");
+<?php 
+
+require 'function.php';
+
+// $conn = mysqli_connect("localhost", "root", "");
 $json = file_get_contents('php://input');
 $data = json_decode($json);
 // $vcell = $data->cms_data[0]->vcell;
@@ -7,6 +10,7 @@ $databaseName = "charging_station";
 $frameName = $data->frame_name;
 $bid = $data->bid;
 
+/*
 $sql = "CREATE DATABASE IF NOT EXISTS $databaseName";
 
 $result = mysqli_query($conn, $sql);
@@ -20,6 +24,18 @@ $conn = mysqli_connect("localhost", "root", "", $databaseName);
 if ($conn -> connect_errno) {
   echo "Failed to connect to MySQL: " . $conn -> connect_error;
   exit();
+}*/
+
+$result = createDatabase();
+
+if($result < 0)
+{
+  echo_ln("Could not connect to $databaseName database");
+  echo_ln("Exit");
+  exit();
+}
+else {
+  echo_ln("$databaseName database created successfully");
 }
 
 $sql_create_table = "CREATE TABLE $frameName (
@@ -89,13 +105,22 @@ $sql_create_table = "CREATE TABLE $frameName (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
 
 $query = "SHOW TABLES LIKE '$frameName'";
-echo $query;
-$result = mysqli_query($conn, $query);
+$result = queryDatabase($query);
 $tableExist = $result->num_rows;
+// echo $query;
+// $result = mysqli_query($conn, $query);
+// $tableExist = $result->num_rows;
 
 if($tableExist <= 0) {
-  $result = mysqli_query($conn, $sql_create_table);
-  echo "Table Not Exist";
+  // $result = mysqli_query($conn, $sql_create_table);
+  // echo "Table Not Exist";
+  $result = queryDatabase($sql_create_table);
+  if ($result) {
+    echo_ln("$frameName table created successfully");
+  }
+}
+else {
+  echo_ln("$frameName Table Exist");
 }
 
 ?>

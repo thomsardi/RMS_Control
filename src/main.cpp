@@ -34,9 +34,9 @@
 
 #define NUM_LEDS 10
 
-// #define AUTO_POST 1 //comment to disable server auto post
+#define AUTO_POST 1 //comment to disable server auto post
 
-#define GREEN_BOARD 1 //uncomment to use green board laminate room
+// #define GREEN_BOARD 1 //uncomment to use green board laminate room
 
 #ifdef GREEN_BOARD
     #define SERIAL_DATA 12
@@ -71,6 +71,7 @@ int stcp = 13;
 
 int lcdColumns = 16;
 int lcdRows = 2;
+uint16_t msgCount[16];
 
 uint8_t ledDIN = 27;
 
@@ -82,11 +83,15 @@ CRGB leds[NUM_LEDS];
 const char *ssid = "RnD_Sundaya";
 // const char *ssid = "abcde";
 const char *password = "sundaya22";
+<<<<<<< HEAD
 const char *host = "192.168.2.174";
+=======
+const char *host = "192.168.2.132";
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
 // const char *host = "desktop-gu3m4fp";
 
 // Set your Static IP address
-IPAddress local_ip(192, 168, 2, 200);
+IPAddress local_ip(192, 168, 2, 188);
 // Set your Gateway IP address
 IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -167,9 +172,12 @@ unsigned long lastReceivedSerialData = 0;
 unsigned long lastProcessResponse = 0;
 String commandString;
 String responseString;
-String globFrameName;
 String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
+<<<<<<< HEAD
 String serverName = "http://192.168.2.174/mydatabase/";
+=======
+String serverName = "http://192.168.2.132/mydatabase/";
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
 
 void reInitCellData()
@@ -329,8 +337,13 @@ int readVcell(const String &input)
                     Serial.println("Vcell " + String(i+1) + " = " + String(cell[i]));
                 }
                 isAllDataCaptured = true;
+<<<<<<< HEAD
                 // msgCount[startIndex]++;
                 // cellData[startIndex].msgCount = msgCount[startIndex];
+=======
+                msgCount[startIndex]++;
+                cellData[startIndex].msgCount = msgCount[startIndex];
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
             }
         }
         else
@@ -483,8 +496,13 @@ int readTemp(const String &input)
                     Serial.println("Temperature " + String(i+1) + " = " + String(temp[i]));
                 }
                 isAllDataCaptured = true;
+<<<<<<< HEAD
                 // msgCount[startIndex]++;
                 // cellData[startIndex].msgCount = msgCount[startIndex];
+=======
+                msgCount[startIndex]++;
+                cellData[startIndex].msgCount = msgCount[startIndex];
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
             }
             
         }
@@ -661,8 +679,13 @@ int readVpack(const String &input)
                     }
                 }
                 isAllDataCaptured = true;
+<<<<<<< HEAD
                 // msgCount[startIndex]++;
                 // cellData[startIndex].msgCount = msgCount[startIndex];
+=======
+                msgCount[startIndex]++;
+                cellData[startIndex].msgCount = msgCount[startIndex];
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
             }
             
         }
@@ -1284,7 +1307,7 @@ void getDeviceStatus(int id)
 
 }
 
-void performAddressingTest2()
+void addressingExec()
 {
     isAddressingCompleted = 0;
     
@@ -1311,6 +1334,7 @@ void performAddressingTest2()
         serializeJson(doc, output);
         Serial2.print(output);
         Serial2.print('\n');
+<<<<<<< HEAD
         Serial.println("===============xxxxxxxxx===========");
         // delay(200);
         // sr.setAllLow();
@@ -1354,6 +1378,8 @@ void addressing(bool isFromBottom)
         serializeJson(doc, output);
         Serial2.print(output);
         Serial2.print('\n');
+=======
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
         Serial.println("===============xxxxxxxxx===========");
         // delay(200);
         // sr.setAllLow();
@@ -1532,13 +1558,19 @@ int sendRequest(int bid, int sequence)
         status = 1;
         break;
     case LED:
-        ledData = ledAnimation.update();
-        if(ledData.currentGroup >= 0)
+        if (ledAnimation.isRunning())
         {
-            convertLedDataToLedCommand(ledData, _ledCommand);
+            ledData = ledAnimation.update();
+            if(ledData.currentGroup >= 0)
+            {
+                convertLedDataToLedCommand(ledData, _ledCommand);
+            }
+            sendLedRequest(_ledCommand); //local variable ledCommand
         }
-        sendLedRequest(_ledCommand); //local variable ledCommand
-        // sendLedRequest(ledCommand); //global variable ledCommand
+        else
+        {
+            sendLedRequest(ledCommand); //global variable ledCommand
+        }
         status = 1;
         break;
     case CMSINFO:
@@ -1715,6 +1747,7 @@ void setup()
     declareStruct();
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
+    // ledAnimation.run();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Hi! I am ESP32."); });
 
@@ -1773,6 +1806,10 @@ void setup()
     {
         Serial.println("post-test");
         request->send(200, "text/plain", "Test Post"); });
+
+    server.onNotFound([](AsyncWebServerRequest *request) {
+        request->send(404);
+    });
 
     AsyncCallbackJsonWebHandler *setBalancingHandler = new AsyncCallbackJsonWebHandler("/set-balancing", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -2077,7 +2114,7 @@ void loop()
         }
     }
 
-    if (commandSequence > 5)
+    if (commandSequence > 4)
     {
         commandSequence = 0;
         deviceAddress++;
@@ -2112,8 +2149,12 @@ void loop()
         dataCollectionCommand.exec = 0;
         Serial.println("Doing Addressing");
         // performAddressing();
+<<<<<<< HEAD
         // performAddressingTest2();
         addressing(true);
+=======
+        addressingExec();
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
         addressingCommand.exec = 0;
         sendCommand = true;
         Serial.println("Addressing Finished");
@@ -2483,9 +2524,20 @@ void loop()
                     {
                         if (isRxBufferEmpty && !Serial2.available())
                         {
+<<<<<<< HEAD
                             sendRequest(addressList.at(deviceAddress), commandSequence);
                             // sendRequest(addressList.at(deviceAddress), LED);
                             // sendRequest(1, LED);
+=======
+                            if (ledAnimation.isRunning())
+                            {
+                                sendRequest(addressList.at(deviceAddress), LED);
+                            }
+                            else
+                            {
+                                sendRequest(addressList.at(deviceAddress), commandSequence);
+                            }
+>>>>>>> b825bedcfb1f1045c6ee992a8d4796adfb3d2d4c
                             isRxBufferEmpty = false;
                             lastTime = millis();
                             lastReceivedSerialData = millis();

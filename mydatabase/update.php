@@ -1,10 +1,11 @@
 <?php
 
+require 'function.php';
+
 $json = file_get_contents('php://input');
 $data = json_decode($json);
 
-
-$databaseName = "charging_station";
+// $databaseName = "charging_station";
 $frameName = $data->frame_name;
 $bid = $data->bid;
 $vcell = $data->vcell;
@@ -13,8 +14,6 @@ $pack = $data->pack;
 $wake_status = $data->wake_status;
 $door_status = $data->door_status;
 $tableName = $frameName;
-$column_list = "";
-$value_list = "";
 
 $columns = "bid";
 $values = $bid;
@@ -22,41 +21,16 @@ $values = $bid;
 $columns .= ",";
 $values .= ",";
 
-for ($x = 1; $x <= 45; $x++) {
-  $column_list .= "v";
-  $column_list .= $x;
-  if ($x != 45) {
-  	$column_list .= ",";
-  } 
-}
-
-for ($x = 0; $x < 45; $x++) {
-  $value_list .= $vcell[$x];
-  if ($x != 44) {
-  	$value_list .= ",";
-  } 
-}
-
-$columns .= $column_list;
-$columns .= ",";
-
-$values .= $value_list;
-$values .= ",";
-
 $column_list = "";
 $value_list = "";
-
-for ($x = 1; $x <= 9; $x++) {
-  $column_list .= "t";
-  $column_list .= $x;
-  if ($x != 9) {
+$element_count = count($vcell);
+for ($x = 0; $x < $element_count; $x++) {
+  $column_list .= "v";
+  $column_list .= $x+1;
+  $value_list .= $vcell[$x];
+  if ($x != ($element_count - 1)) 
+  {
     $column_list .= ",";
-  } 
-}
-
-for ($x = 0; $x < 9; $x++) {
-  $value_list .= $temp[$x];
-  if ($x != 8) {
     $value_list .= ",";
   } 
 }
@@ -69,19 +43,32 @@ $values .= ",";
 
 $column_list = "";
 $value_list = "";
-
-
-for ($x = 1; $x <= 3; $x++) {
-  $column_list .= "vp";
-  $column_list .= $x;
-  if ($x != 3) {
+$element_count = count($temp);
+for ($x = 0; $x < $element_count; $x++) {
+  $column_list .= "t";
+  $column_list .= $x+1;
+  $value_list .= $temp[$x];
+  if ($x != ($element_count - 1)) {
     $column_list .= ",";
+    $value_list .= ",";
   } 
 }
 
-for ($x = 0; $x < 3; $x++) {
+$columns .= $column_list;
+$columns .= ",";
+
+$values .= $value_list;
+$values .= ",";
+
+$column_list = "";
+$value_list = "";
+$element_count = count($pack);
+for ($x = 0; $x < $element_count; $x++) {
+  $column_list .= "vp";
+  $column_list .= $x+1;
   $value_list .= $pack[$x];
-  if ($x != 2) {
+  if ($x != ($element_count-1)) {
+    $column_list .= ",";
     $value_list .= ",";
   } 
 }
@@ -102,14 +89,14 @@ $values .= ",";
 $columns .= "door_status";
 $values .= $door_status;
 
-$conn = mysqli_connect("localhost", "root", "", $databaseName);
+// $conn = mysqli_connect("localhost", "root", "", $databaseName);
 $sql = "INSERT INTO $tableName ($columns) VALUES ($values)";
 echo $sql;
-$result = mysqli_query($conn, $sql);
+// $result = mysqli_query($conn, $sql);
+$result = queryDatabase($sql);
 
 if (!$result) {
 	echo mysql_error();
 }
-
 
 ?>
