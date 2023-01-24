@@ -19,7 +19,13 @@ class RMSManager {
         String createCMSStatusRequest(uint8_t bid);
         String createJsonLedRequest(const LedCommand &ledCommand);
         String createCMSInfoRequest(uint8_t bid);
+
         String createCMSFrameWriteIdRequest(uint8_t bid, String frameId);
+        String createCMSCodeWriteRequest(uint8_t bid, String cmsCode);
+        String createCMSBaseCodeWriteRequest(uint8_t bid, String baseCode);
+        String createCMSMcuCodeWriteRequest(uint8_t bid, String mcuCode);
+        String createCMSSiteLocationWriteRequest(uint8_t bid, String siteLocation);
+        
         String createCMSReadBalancingStatus(uint8_t bid);
         String createCMSResetRequest(uint8_t bid);
 

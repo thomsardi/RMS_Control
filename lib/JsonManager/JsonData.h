@@ -3,7 +3,11 @@
 struct CellData
 {
     uint16_t msgCount = 0;
-    String frameName = "unspecified";
+    String frameName = "";
+    String cmsCodeName = "";
+    String baseCodeName = "";
+    String mcuCodeName = "";
+    String siteLocation = "";
     int bid = 0;
     int vcell[45] = {0};
     int32_t temp[9] = {0};
@@ -14,7 +18,7 @@ struct CellData
 
 struct RMSInfo
 {
-    String p_code = "";
+    String rmsCode = "";
     String ver = "";
     String ip = "";
     String mac = "";
@@ -23,9 +27,12 @@ struct RMSInfo
 
 struct CMSInfo
 {
-    String frameName = "unspecified";
+    String frameName = "";
     int bid = 0;
-    String p_code = "";
+    String cmsCodeName = "";
+    String baseCodeName = "";
+    String mcuCodeName = "";
+    String siteLocation = "";
     String ver = "";
     String chip = "";
 };
@@ -118,6 +125,34 @@ struct FrameWrite
     int bid = 0;
     int write = 0;
     String frameName = "";
+};
+
+struct CMSCodeWrite
+{
+    int bid = 0;
+    int write = 0;
+    String cmsCode = "";
+};
+
+struct BaseCodeWrite
+{
+    int bid = 0;
+    int write = 0;
+    String baseCode = "";
+};
+
+struct McuCodeWrite
+{
+    int bid = 0;
+    int write = 0;
+    String mcuCode = "";
+};
+
+struct SiteLocationWrite
+{
+    int bid = 0;
+    int write = 0;
+    String siteLocation = "";
 };
 
 struct CMSShutDown

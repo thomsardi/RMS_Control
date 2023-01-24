@@ -125,6 +125,50 @@ String RMSManager::createCMSFrameWriteIdRequest(uint8_t bid, String frameName)
     return output;
 }
 
+String RMSManager::createCMSCodeWriteRequest(uint8_t bid, String cmsCode)
+{
+    String output;
+    StaticJsonDocument<96> doc;
+    doc["BID"] = bid;
+    doc["cms_write"] = 1;
+    doc["cms_code"] = cmsCode;
+    serializeJson(doc, output);
+    return output;
+}
+
+String RMSManager::createCMSBaseCodeWriteRequest(uint8_t bid, String baseCode)
+{
+    String output;
+    StaticJsonDocument<96> doc;
+    doc["BID"] = bid;
+    doc["base_write"] = 1;
+    doc["base_code"] = baseCode;
+    serializeJson(doc, output);
+    return output;
+}
+
+String RMSManager::createCMSMcuCodeWriteRequest(uint8_t bid, String mcuCode)
+{
+    String output;
+    StaticJsonDocument<96> doc;
+    doc["BID"] = bid;
+    doc["mcu_write"] = 1;
+    doc["mcu_code"] = mcuCode;
+    serializeJson(doc, output);
+    return output;
+}
+
+String RMSManager::createCMSSiteLocationWriteRequest(uint8_t bid, String siteLocation)
+{
+    String output;
+    StaticJsonDocument<96> doc;
+    doc["BID"] = bid;
+    doc["site_write"] = 1;
+    doc["site_location"] = siteLocation;
+    serializeJson(doc, output);
+    return output;
+}
+
 String RMSManager::createCMSWriteBalancingRequest(uint8_t bid, const int cellCommand[], size_t numOfCellCommand)
 {
     String output;

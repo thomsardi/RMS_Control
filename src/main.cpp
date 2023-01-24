@@ -34,6 +34,8 @@
 
 #define NUM_LEDS 10
 
+#define USE_BQ76940 1
+
 // #define AUTO_POST 1 //comment to disable server auto post
 
 // #define GREEN_BOARD 1 //uncomment to use green board laminate room
@@ -128,6 +130,10 @@ DataCollectionCommand dataCollectionCommand;
 CellBalancingStatus cellBalancingStatus[8];
 CommandStatus commandStatus;
 FrameWrite frameWrite;
+CMSCodeWrite cmsCodeWrite;
+BaseCodeWrite baseCodeWrite;
+McuCodeWrite mcuCodeWrite;
+SiteLocationWrite siteLocationWrite;
 CMSShutDown cmsShutDown;
 CMSWakeup cmsWakeup;
 LedCommand ledCommand;
@@ -143,10 +149,14 @@ enum CommandType {
     LED = 5,
     CMSINFO = 6,
     CMSFRAMEWRITE = 7,
-    BALANCINGWRITE = 8,
-    SHUTDOWN = 9,
-    WAKEUP = 10,
-    RESTART = 11
+    CMSCODEWRITE = 8,
+    CMSBASECODEWRITE = 9,
+    CMSMCUCODEWRITE = 10,
+    CMSSITELOCATIONWRITE = 11,
+    BALANCINGWRITE = 12,
+    SHUTDOWN = 13,
+    WAKEUP = 14,
+    RESTART = 15
 };
 
 int dataComplete = 0;
@@ -164,6 +174,10 @@ bool isGotCMSInfo = false;
 bool flasher = true;
 bool lastStateDataCollection = false;
 bool lastFrameWrite = false;
+bool lastCmsCodeWrite = false;
+bool lastBaseCodeWrite = false; 
+bool lastMcuCodeWrite = false; 
+bool lastSiteLocationWrite = false;
 bool lastCellBalancingSball = false;
 bool lastCMSShutdown = false;
 bool lastCMSWakeup = false;
@@ -192,7 +206,11 @@ void reInitCellData()
 {
     for (size_t i = 0; i < 8; i++)
     {
-        cellData[i].frameName = "unspecified";
+        cellData[i].frameName = "N/A";
+        cellData[i].cmsCodeName = "N/A";
+        cellData[i].baseCodeName = "N/A";
+        cellData[i].mcuCodeName = "N/A";
+        cellData[i].siteLocation = "N/A";
         cellData[i].bid = i + 100;
         for (size_t j = 0; j < 45; j++)
         {
@@ -214,7 +232,11 @@ void declareStruct()
 {
     for (size_t i = 0; i < 8; i++)
     {
-        cellData[i].frameName = "unspecified";
+        cellData[i].frameName = "N/A";
+        cellData[i].cmsCodeName = "N/A";
+        cellData[i].baseCodeName = "N/A";
+        cellData[i].mcuCodeName = "N/A";
+        cellData[i].siteLocation = "N/A";
         cellData[i].bid = i + 100;
         for (size_t j = 0; j < 45; j++)
         {
@@ -231,8 +253,8 @@ void declareStruct()
         cellData[i].status = 0;
         cellData[i].door = 0;
     }
-    rmsInfo.p_code = "1.2.10";
-    rmsInfo.ver = "1.0";
+    rmsInfo.rmsCode = "RMS-32-01";
+    rmsInfo.ver = "1.0.0";
     rmsInfo.ip = WiFi.localIP().toString();
     rmsInfo.mac = WiFi.macAddress();
     rmsInfo.deviceTypeName = "RMS";
@@ -240,16 +262,20 @@ void declareStruct()
     for (size_t i = 0; i < 8; i++)
     {
         cmsInfo[i].bid = i;
-        cmsInfo[i].p_code = "1.1." + String(i);
-        cmsInfo[i].ver = "1." + String(i);
-        if (!(i % 2))
-        {
-            cmsInfo[i].chip = "dvc1024";
-        }
-        else
-        {
-            cmsInfo[i].chip = "bq76940";
-        }
+        cmsInfo[i].cmsCodeName = "N/A";
+        cmsInfo[i].baseCodeName = "N/A";
+        cmsInfo[i].mcuCodeName = "N/A";
+        cmsInfo[i].siteLocation = "N/A";
+        cmsInfo[i].ver = "N/A";
+        cmsInfo[i].chip = "N/A";
+        // if (!(i % 2))
+        // {
+        //     cmsInfo[i].chip = "dvc1024";
+        // }
+        // else
+        // {
+        //     cmsInfo[i].chip = "bq76940";
+        // }
     }
 
     for (size_t i = 0; i < 8; i++)
@@ -919,8 +945,148 @@ int readFrameWriteResponse(const String &input)
     {
         if (docBattery.containsKey("frame_write"))
         {
-            // status = docBattery["status"];
-            status = 1;
+            status = docBattery["status"];
+            // status = 1;
+        }
+        else
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
+int readCMSCodeWriteResponse(const String &input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    int status = -1;
+    bool isAllDataCaptured = false;
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
+    DynamicJsonDocument docBattery(1024);
+    DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Frame Write Response");
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
+    JsonObject object = docBattery.as<JsonObject>();
+    // Serial.println(jsonDoc);
+    if (!object.isNull())
+    {
+        if (docBattery.containsKey("cms_write"))
+        {
+            status = docBattery["status"];
+            // status = 1;
+        }
+        else
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
+int readCMSBaseCodeWriteResponse(const String &input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    int status = -1;
+    bool isAllDataCaptured = false;
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
+    DynamicJsonDocument docBattery(1024);
+    DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Frame Write Response");
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
+    JsonObject object = docBattery.as<JsonObject>();
+    // Serial.println(jsonDoc);
+    if (!object.isNull())
+    {
+        if (docBattery.containsKey("base_write"))
+        {
+            status = docBattery["status"];
+            // status = 1;
+        }
+        else
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
+int readCMSMcuCodeWriteResponse(const String &input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    int status = -1;
+    bool isAllDataCaptured = false;
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
+    DynamicJsonDocument docBattery(1024);
+    DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Frame Write Response");
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
+    JsonObject object = docBattery.as<JsonObject>();
+    // Serial.println(jsonDoc);
+    if (!object.isNull())
+    {
+        if (docBattery.containsKey("mcu_write"))
+        {
+            status = docBattery["status"];
+            // status = 1;
+        }
+        else
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
+int readCMSSiteLocationWriteResponse(const String &input)
+{
+    int bid = 0;
+    int startIndex = 0;
+    int status = -1;
+    bool isAllDataCaptured = false;
+    bool isAllDataNormal = false;
+    bool isValidJsonFormat = true;
+    DynamicJsonDocument docBattery(1024);
+    DeserializationError error = deserializeJson(docBattery, input);
+    // Serial.println("Read Frame Write Response");
+    if (error) 
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return status;
+    }
+    // deserializeJson(docBattery, Serial2);
+    JsonObject object = docBattery.as<JsonObject>();
+    // Serial.println(jsonDoc);
+    if (!object.isNull())
+    {
+        if (docBattery.containsKey("site_write"))
+        {
+            status = docBattery["status"];
+            // status = 1;
         }
         else
         {
@@ -963,13 +1129,21 @@ int readCMSInfo(const String &input)
             return status;
         }
 
-        if (docBattery.containsKey("p_code"))
+        if (docBattery.containsKey("cms_code"))
         {
             // Serial.println("Writing Info to Local Storage");
             cmsInfo[startIndex].frameName = docBattery["frame_name"].as<String>();
             cellData[startIndex].frameName = cmsInfo[startIndex].frameName;
             cmsInfo[startIndex].bid = bid;
-            cmsInfo[startIndex].p_code = docBattery["p_code"].as<String>();
+            cellData[startIndex].bid = cmsInfo[startIndex].bid;
+            cmsInfo[startIndex].cmsCodeName = docBattery["cms_code"].as<String>();
+            cellData[startIndex].cmsCodeName = cmsInfo[startIndex].cmsCodeName;
+            cmsInfo[startIndex].baseCodeName = docBattery["base_code"].as<String>();
+            cellData[startIndex].baseCodeName = cmsInfo[startIndex].baseCodeName;
+            cmsInfo[startIndex].mcuCodeName = docBattery["mcu_code"].as<String>();
+            cellData[startIndex].mcuCodeName = cmsInfo[startIndex].mcuCodeName;
+            cmsInfo[startIndex].siteLocation = docBattery["site_location"].as<String>();
+            cellData[startIndex].siteLocation = cmsInfo[startIndex].siteLocation;
             cmsInfo[startIndex].ver = docBattery["ver"].as<String>();
             cmsInfo[startIndex].chip = docBattery["chip"].as<String>();
             status = 1;
@@ -1248,6 +1422,66 @@ int sendCMSFrameWriteRequest(FrameWrite frameWrite)
     return 1;
 }
 
+int sendCMSCodeWriteRequest(CMSCodeWrite cmsCodeWrite)
+{
+    int led = cmsCodeWrite.bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSCodeWriteRequest(cmsCodeWrite.bid, cmsCodeWrite.cmsCode);
+    Serial2.print(output);
+    Serial2.print('\n');
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendCMSBaseCodeWriteRequest(BaseCodeWrite baseCodeWrite)
+{
+    int led = baseCodeWrite.bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSBaseCodeWriteRequest(baseCodeWrite.bid, baseCodeWrite.baseCode);
+    Serial2.print(output);
+    Serial2.print('\n');
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendCMSMcuCodeWriteRequest(McuCodeWrite mcuCodeWrite)
+{
+    int led = mcuCodeWrite.bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSMcuCodeWriteRequest(mcuCodeWrite.bid, mcuCodeWrite.mcuCode);
+    Serial2.print(output);
+    Serial2.print('\n');
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
+int sendCMSSiteLocationWriteRequest(SiteLocationWrite siteLocationWrite)
+{
+    int led = siteLocationWrite.bid - 1;
+    // Serial.println("Request Vpack Data");
+    leds[led] = CRGB(227, 202, 9);
+    FastLED.setBrightness(20);
+    FastLED.show();
+    String output = rmsManager.createCMSSiteLocationWriteRequest(siteLocationWrite.bid, siteLocationWrite.siteLocation);
+    Serial2.print(output);
+    Serial2.print('\n');
+    leds[led] = CRGB(129, 141, 214);
+    FastLED.show();
+    return 1;
+}
+
 int sendBalancingWriteRequest(CellBalancingCommand cellBalancingCommand)
 {
     int led = cellBalancingCommand.bid - 1;
@@ -1499,6 +1733,22 @@ int sendRequest(int bid, int sequence)
         sendCMSFrameWriteRequest(frameWrite);
         status = 1;
         break;
+    case CMSCODEWRITE:
+        sendCMSCodeWriteRequest(cmsCodeWrite);
+        status = 1;
+        break;
+    case CMSBASECODEWRITE:
+        sendCMSBaseCodeWriteRequest(baseCodeWrite);
+        status = 1;
+        break;
+    case CMSMCUCODEWRITE:
+        sendCMSMcuCodeWriteRequest(mcuCodeWrite);
+        status = 1;
+        break;
+    case CMSSITELOCATIONWRITE:
+        sendCMSSiteLocationWriteRequest(siteLocationWrite);
+        status = 1;
+        break;
     case BALANCINGWRITE:
         sendBalancingWriteRequest(cellBalancingCommand);
         status = 1;
@@ -1544,6 +1794,26 @@ int checkResponse(const String &input)
         status = 1;
     }
     else if (readFrameWriteResponse(input) >= 0)
+    {
+        // Serial.println("FRAME");
+        status = 1;
+    }
+    else if (readCMSCodeWriteResponse(input) >= 0)
+    {
+        // Serial.println("FRAME");
+        status = 1;
+    }
+    else if (readCMSBaseCodeWriteResponse(input) >= 0)
+    {
+        // Serial.println("FRAME");
+        status = 1;
+    }
+    else if (readCMSMcuCodeWriteResponse(input) >= 0)
+    {
+        // Serial.println("FRAME");
+        status = 1;
+    }
+    else if (readCMSSiteLocationWriteResponse(input) >= 0)
     {
         // Serial.println("FRAME");
         status = 1;
@@ -1996,6 +2266,54 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
+    AsyncCallbackJsonWebHandler *setCmsCodeHandler = new AsyncCallbackJsonWebHandler("/set-cms-code", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonCMSCodeParser(input.c_str(), cmsCodeWrite);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
+    AsyncCallbackJsonWebHandler *setBaseCodeHandler = new AsyncCallbackJsonWebHandler("/set-base-code", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonCMSBaseCodeParser(input.c_str(), baseCodeWrite);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
+    AsyncCallbackJsonWebHandler *setMcuCodeHandler = new AsyncCallbackJsonWebHandler("/set-mcu-code", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonCMSMcuCodeParser(input.c_str(), mcuCodeWrite);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
+    AsyncCallbackJsonWebHandler *setSiteLocationHandler = new AsyncCallbackJsonWebHandler("/set-site-location", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonCMSSiteLocationParser(input.c_str(), siteLocationWrite);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
     server.addHandler(setBalancingHandler);
     server.addHandler(setAddressHandler);
     server.addHandler(setAlarmHandler);
@@ -2004,6 +2322,10 @@ void setup()
     server.addHandler(setSleepHandler);
     server.addHandler(setWakeupHandler);
     server.addHandler(setFrameHandler);
+    server.addHandler(setCmsCodeHandler);
+    server.addHandler(setBaseCodeHandler);
+    server.addHandler(setMcuCodeHandler);
+    server.addHandler(setSiteLocationHandler);
     server.addHandler(setLedHandler);
     server.addHandler(restartCMSHandler);
     server.addHandler(restartRMSHandler);
@@ -2218,6 +2540,182 @@ void loop()
                         frameWrite.bid = 0;
                         frameWrite.write = false;
                         lastFrameWrite = false;
+                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+                        lastTime = millis();
+                        lastReceivedSerialData = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }         
+        }
+
+        if (cmsCodeWrite.write)
+        {
+            Serial.println("Write CMS Code");
+            if (lastCmsCodeWrite != cmsCodeWrite.write) //check if there is command to write frame
+            {
+                lastCmsCodeWrite = cmsCodeWrite.write;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
+            }
+            // dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(cmsCodeWrite.bid, CMSCODEWRITE);
+                        isRxBufferEmpty = false;
+                        sendCommand = false;
+                        cmsCodeWrite.bid = 0;
+                        cmsCodeWrite.write = false;
+                        lastCmsCodeWrite = false;
+                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+                        lastTime = millis();
+                        lastReceivedSerialData = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }         
+        }
+
+        if (baseCodeWrite.write)
+        {
+            Serial.println("Write Base Code");
+            if (lastBaseCodeWrite != baseCodeWrite.write) //check if there is command to write frame
+            {
+                lastBaseCodeWrite = baseCodeWrite.write;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
+            }
+            // dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(baseCodeWrite.bid, CMSBASECODEWRITE);
+                        isRxBufferEmpty = false;
+                        sendCommand = false;
+                        baseCodeWrite.bid = 0;
+                        baseCodeWrite.write = false;
+                        lastBaseCodeWrite = false;
+                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+                        lastTime = millis();
+                        lastReceivedSerialData = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }         
+        }
+
+        if (mcuCodeWrite.write)
+        {
+            Serial.println("Write Mcu Code");
+            if (lastMcuCodeWrite != mcuCodeWrite.write) //check if there is command to write frame
+            {
+                lastMcuCodeWrite = mcuCodeWrite.write;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
+            }
+            // dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(mcuCodeWrite.bid, CMSMCUCODEWRITE);
+                        isRxBufferEmpty = false;
+                        sendCommand = false;
+                        mcuCodeWrite.bid = 0;
+                        mcuCodeWrite.write = false;
+                        lastMcuCodeWrite = false;
+                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
+                        lastTime = millis();
+                        lastReceivedSerialData = millis();
+                    }
+                    else
+                    {
+                        dataCollectionCommand.exec = false;
+                    }
+                }
+                else
+                {
+                    dataCollectionCommand.exec = false;
+                }
+            }
+            else
+            {
+                dataCollectionCommand.exec = false;
+            }         
+        }
+
+        if (siteLocationWrite.write)
+        {
+            Serial.println("Write Mcu Code");
+            if (lastSiteLocationWrite != siteLocationWrite.write) //check if there is command to write frame
+            {
+                lastSiteLocationWrite = siteLocationWrite.write;
+                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
+            }
+            // dataCollectionCommand.exec = false;
+            isGotCMSInfo = false;
+            deviceAddress = 0;
+            commandSequence = 0;
+            if (isRxBufferEmpty && !Serial2.available())
+            {
+                if(sendCommand)
+                {
+                    if (dataCollectionCommand.exec == false)
+                    {
+                        sendRequest(siteLocationWrite.bid, CMSSITELOCATIONWRITE);
+                        isRxBufferEmpty = false;
+                        sendCommand = false;
+                        siteLocationWrite.bid = 0;
+                        siteLocationWrite.write = false;
+                        lastSiteLocationWrite = false;
                         dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
                         lastTime = millis();
                         lastReceivedSerialData = millis();

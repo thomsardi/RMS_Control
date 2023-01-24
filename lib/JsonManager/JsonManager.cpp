@@ -44,6 +44,10 @@ String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJ
         JsonObject cms_0 = cms.createNestedObject();
         cms_0["msg_count"] = cellData[i].msgCount;
         cms_0["frame_name"] = cellData[i].frameName;
+        cms_0["cms_code"] = cellData[i].cmsCodeName;
+        cms_0["base_code"] = cellData[i].baseCodeName;
+        cms_0["mcu_code"] = cellData[i].mcuCodeName;
+        cms_0["site_location"] = cellData[i].siteLocation;
         cms_0["bid"] = cellData[i].bid;
         JsonArray vcell = cms_0.createNestedArray("vcell");
         for ( int j = 0; j < 45; j++)
@@ -71,7 +75,7 @@ String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
 {
     String result;
     DynamicJsonDocument doc(256);
-    doc["p_code"] = rmsInfo.p_code;
+    doc["p_code"] = rmsInfo.rmsCode;
     doc["ver"] = rmsInfo.ver;
     doc["ip"] = rmsInfo.ip;
     doc["mac"] = rmsInfo.mac;
@@ -90,7 +94,10 @@ String JsonManager::buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonOb
         JsonObject cms_info_0 = cms_info.createNestedObject();
         cms_info_0["frame_name"] = cmsInfo[i].frameName;
         cms_info_0["bid"] = cmsInfo[i].bid;
-        cms_info_0["p_code"] = cmsInfo[i].p_code;
+        cms_info_0["cms_code"] = cmsInfo[i].cmsCodeName;
+        cms_info_0["base_code"] = cmsInfo[i].baseCodeName;
+        cms_info_0["mcu_code"] = cmsInfo[i].mcuCodeName;
+        cms_info_0["site_location"] = cmsInfo[i].siteLocation;
         cms_info_0["ver"] = cmsInfo[i].ver;
         cms_info_0["chip"] = cmsInfo[i].chip;
     }
@@ -414,6 +421,152 @@ int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrit
     }
     return command;
 }
+
+
+int JsonManager::jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeWrite)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        cmsCodeWrite.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("cms_write")) 
+    {
+        return -1;
+    }
+
+    cmsCodeWrite.write = doc["cms_write"]; // 1
+    if (cmsCodeWrite.write)
+    {
+        cmsCodeWrite.cmsCode = doc["cms_code"].as<String>();
+        command = cmsCodeWrite.write;
+    }
+    return command;
+}
+
+int JsonManager::jsonCMSBaseCodeParser(const char* jsonInput, BaseCodeWrite &baseCodeWrite)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        baseCodeWrite.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("base_write")) 
+    {
+        return -1;
+    }
+
+    baseCodeWrite.write = doc["base_write"]; // 1
+    if (baseCodeWrite.write)
+    {
+        baseCodeWrite.baseCode = doc["base_code"].as<String>();
+        command = baseCodeWrite.write;
+    }
+    return command;
+}
+
+int JsonManager::jsonCMSMcuCodeParser(const char* jsonInput, McuCodeWrite &mcuCodeWrite)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        mcuCodeWrite.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("mcu_write")) 
+    {
+        return -1;
+    }
+
+    mcuCodeWrite.write = doc["mcu_write"]; // 1
+    if (mcuCodeWrite.write)
+    {
+        mcuCodeWrite.mcuCode = doc["mcu_code"].as<String>();
+        command = mcuCodeWrite.write;
+    }
+    return command;
+}
+
+int JsonManager::jsonCMSSiteLocationParser(const char* jsonInput, SiteLocationWrite &siteLocationWrite)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (doc.containsKey("bid"))
+    {
+        bid = doc["bid"];
+        siteLocationWrite.bid = bid;
+    }
+    else
+    {
+        return -1;
+    }
+    if (!doc.containsKey("site_write")) 
+    {
+        return -1;
+    }
+
+    siteLocationWrite.write = doc["site_write"]; // 1
+    if (siteLocationWrite.write)
+    {
+        siteLocationWrite.siteLocation = doc["site_location"].as<String>();
+        command = siteLocationWrite.write;
+    }
+    return command;
+}
+
 
 int JsonManager::jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[])
 {
