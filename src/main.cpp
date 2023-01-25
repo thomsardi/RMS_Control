@@ -36,14 +36,17 @@
 
 #define USE_BQ76940 1
 
-// #define AUTO_POST 1 //comment to disable server auto post
+#define AUTO_POST 1 //comment to disable server auto post
 
-// #define GREEN_BOARD 1 //uncomment to use green board laminate room
+#define LAMINATE_ROOM 1 //uncomment to use green board laminate room
 
-#ifdef GREEN_BOARD
-    #define SERIAL_DATA 12
-    #define SHCP 14
-    #define STCP 13
+#ifdef LAMINATE_ROOM
+    // #define SERIAL_DATA 12
+    // #define SHCP 14
+    // #define STCP 13
+    #define SERIAL_DATA 14
+    #define SHCP 13
+    #define STCP 12
     #define DATABASE_IP "192.168.2.174"
     #define SERVER_NAME "http://192.168.2.174/mydatabase/"
     #define HOST_NAME "RMS-Laminate-Room"
@@ -95,7 +98,7 @@ const char *host = DATABASE_IP;
 // const char *host = "192.168.2.174"; //green board
 
 
-#ifdef GREEN_BOARD
+#ifdef LAMINATE_ROOM
     // Set your Static IP address
     IPAddress local_ip(192, 168, 2, 200);
 #else
@@ -198,8 +201,7 @@ unsigned long lastReceivedSerialData = 0;
 unsigned long lastProcessResponse = 0;
 String commandString;
 String responseString;
-String circularCommand[3] = {"readcell", "readtemp", "readvpack"};
-String serverName = "http://192.168.2.132/mydatabase/";
+String serverName = SERVER_NAME;
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
 
 void reInitCellData()

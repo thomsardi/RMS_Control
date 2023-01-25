@@ -8,7 +8,11 @@ $data = json_decode($json);
 // $vcell = $data->cms_data[0]->vcell;
 $databaseName = "charging_station";
 $frameName = $data->frame_name;
-$bid = $data->bid;
+
+// if (!is_string($frameName)) {
+//   $temp = strval($frameName);
+//   $frameName = "'" . $temp . "'";
+// }
 
 /*
 $sql = "CREATE DATABASE IF NOT EXISTS $databaseName";
@@ -38,9 +42,14 @@ else {
   echo_ln("$databaseName database created successfully");
 }
 
-$sql_create_table = "CREATE TABLE $frameName (
+$sql_create_table = "CREATE TABLE `$frameName` (
  `id` int(11) NOT NULL AUTO_INCREMENT,
  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+ `msg_count` INT UNSIGNED NOT NULL,
+ `cms_code` VARCHAR(50) NOT NULL,
+ `base_code` VARCHAR(50) NOT NULL,
+ `mcu_code` VARCHAR(50) NOT NULL,
+ `site_location` VARCHAR(50) NOT NULL,
  `bid` int(11) NOT NULL,
  `v1` int(11) NOT NULL,
  `v2` int(11) NOT NULL,

@@ -11,6 +11,10 @@ String JsonManager::buildSingleJsonData(const CellData &cellData)
     StaticJsonDocument<1536> doc; // for 8 object
     doc["msg_count"] = cellData.msgCount;
     doc["frame_name"] = cellData.frameName;
+    doc["cms_code"] = cellData.cmsCodeName;
+    doc["base_code"] = cellData.baseCodeName;
+    doc["mcu_code"] = cellData.mcuCodeName;
+    doc["site_location"] = cellData.siteLocation;
     doc["bid"] = cellData.bid;
     JsonArray vcell = doc.createNestedArray("vcell");
     for (int j = 0; j < 45; j++)

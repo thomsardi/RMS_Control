@@ -6,7 +6,12 @@ $json = file_get_contents('php://input');
 $data = json_decode($json);
 
 // $databaseName = "charging_station";
+$msgCount = $data->msg_count;
 $frameName = $data->frame_name;
+$cmsCode = $data->cms_code;
+$baseCode = $data->base_code;
+$mcuCode = $data->mcu_code;
+$siteLocation = $data->site_location;
 $bid = $data->bid;
 $vcell = $data->vcell;
 $temp = $data->temp;
@@ -15,8 +20,38 @@ $wake_status = $data->wake_status;
 $door_status = $data->door_status;
 $tableName = $frameName;
 
-$columns = "bid";
-$values = $bid;
+$columns = "msg_count";
+$values = $msgCount;
+
+$columns .= ",";
+$values .= ",";
+
+$columns .= "cms_code";
+$values .= "'" . $cmsCode . "'";
+
+$columns .= ",";
+$values .= ",";
+
+$columns .= "base_code";
+$values .= "'" . $baseCode . "'";
+
+$columns .= ",";
+$values .= ",";
+
+$columns .= "mcu_code";
+$values .= "'" . $mcuCode . "'";
+
+$columns .= ",";
+$values .= ",";
+
+$columns .= "site_location";
+$values .= "'" . $siteLocation . "'";
+
+$columns .= ",";
+$values .= ",";
+
+$columns .= "bid";
+$values .= $bid;
 
 $columns .= ",";
 $values .= ",";
@@ -90,7 +125,7 @@ $columns .= "door_status";
 $values .= $door_status;
 
 // $conn = mysqli_connect("localhost", "root", "", $databaseName);
-$sql = "INSERT INTO $tableName ($columns) VALUES ($values)";
+$sql = "INSERT INTO `$tableName` ($columns) VALUES ($values)";
 echo $sql;
 // $result = mysqli_query($conn, $sql);
 $result = queryDatabase($sql);
