@@ -46,6 +46,7 @@ $sql_create_table = "CREATE TABLE `$frameName` (
  `id` int(11) NOT NULL AUTO_INCREMENT,
  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
  `msg_count` INT UNSIGNED NOT NULL,
+ `frame_name` varchar(50) NOT NULL,
  `cms_code` VARCHAR(50) NOT NULL,
  `base_code` VARCHAR(50) NOT NULL,
  `mcu_code` VARCHAR(50) NOT NULL,

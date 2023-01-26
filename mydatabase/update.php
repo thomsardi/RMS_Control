@@ -26,6 +26,12 @@ $values = $msgCount;
 $columns .= ",";
 $values .= ",";
 
+$columns .= "frame_name";
+$values .= "'" . $frameName . "'";
+
+$columns .= ",";
+$values .= ",";
+
 $columns .= "cms_code";
 $values .= "'" . $cmsCode . "'";
 
