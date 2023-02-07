@@ -40,6 +40,8 @@
 
 #define LAMINATE_ROOM 1 //uncomment to use green board laminate room
 
+#define CYCLING 1
+
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
     // #define SHCP 14
@@ -100,7 +102,11 @@ const char *host = DATABASE_IP;
 
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
-    IPAddress local_ip(192, 168, 2, 200);
+    #ifdef CYCLING
+        IPAddress local_ip(192, 168, 2, 210);
+    #else
+        IPAddress local_ip(192, 168, 2, 200);
+    #endif
 #else
     // Set your Static IP address
     IPAddress local_ip(192, 168, 2, 188);
