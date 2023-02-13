@@ -36,7 +36,7 @@
 
 #define USE_BQ76940 1
 
-#define AUTO_POST 1 //comment to disable server auto post
+// #define AUTO_POST 1 //comment to disable server auto post
 
 #define LAMINATE_ROOM 1 //uncomment to use green board laminate room
 
@@ -75,6 +75,8 @@ int buzzer = 19;
 // create a global shift register object
 // parameters: <number of shift registers> (data pin, clock pin, latch pin)
 
+int internalLed = 2;
+
 int const numOfShiftRegister = 8;
 int address = 1; //BID start from 1
 
@@ -109,7 +111,7 @@ const char *host = DATABASE_IP;
     #endif
 #else
     // Set your Static IP address
-    IPAddress local_ip(192, 168, 2, 188);
+    IPAddress local_ip(192, 168, 2, 196);
 #endif
 
 // Set your Gateway IP address
@@ -1876,9 +1878,9 @@ void addressing(bool isFromBottom)
         Serial.print("number = ");
         Serial.println(x);
         sr.set(x, HIGH);
-        delay(100);
+        delay(200);
         sr.set(x, LOW);
-        delay(100);
+        delay(200);
         
         while (Serial2.available()) //get for the response {"BID_STATUS" : 1}
         {
@@ -1946,6 +1948,16 @@ void addressing(bool isFromBottom)
 }
 
 
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  digitalWrite(internalLed, LOW);
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.wifi_sta_disconnected.reason);
+  Serial.println("Trying to Reconnect");
+  WiFi.begin(ssid, password);
+  digitalWrite(internalLed, HIGH);
+}
+
 void resetUpdater()
 {
     for (size_t i = 0; i < 8; i++)
@@ -1960,6 +1972,7 @@ void setup()
     pinMode(relay[0], OUTPUT);
     pinMode(relay[1], OUTPUT);
     pinMode(buzzer, OUTPUT);
+    pinMode(internalLed, OUTPUT);
     Serial.begin(115200);
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
@@ -2033,6 +2046,7 @@ void setup()
         Serial.println(WiFi.dnsIP(1));
         Serial.print("Hostname: ");
         Serial.println(WiFi.getHostname());
+        digitalWrite(internalLed, HIGH);
         // lcd.setCursor(0, 0);
         // lcd.print("IP :");
         // lcd.setCursor(0,1);
@@ -2044,9 +2058,11 @@ void setup()
         FastLED.setBrightness(20);
         FastLED.show();
         Serial.println("WiFi Not Connected");
+        digitalWrite(internalLed, LOW);
         // lcd.setCursor(0,0);
         // lcd.print("Not Connected");
     }
+    WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     delay(100); //wait a bit to stabilize the voltage and current consumption
     digitalWrite(relay[0], HIGH);
     digitalWrite(relay[1], HIGH);
@@ -2141,6 +2157,7 @@ void setup()
         int status = jsonManager.jsonAddressingCommandParser(input.c_str());
         addressingCommand.exec = status;
         commandStatus.addrCommand = status;
+        isAddressingCompleted = 0;
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
@@ -2356,6 +2373,7 @@ void loop()
     // LedData ledData = ledAnimation.update();
     // Serial.println("Current Group : " + String(ledData.currentGroup));
     // Serial.println("Current String : " + String(ledData.currentString));
+
     if (alarmCommand.buzzer)
     {
         if (millis() - lastBuzzer < 1000)
