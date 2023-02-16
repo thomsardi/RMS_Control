@@ -40,7 +40,7 @@
 
 #define LAMINATE_ROOM 1 //uncomment to use green board laminate room
 
-#define CYCLING 1
+// #define CYCLING 1
 
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
@@ -105,20 +105,24 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        IPAddress local_ip(192, 168, 2, 210);
+        // IPAddress local_ip(192, 168, 2, 210);
+        IPAddress local_ip(192, 168, 8, 190);
+        IPAddress gateway(192, 168, 8, 1);
     #else
-        IPAddress local_ip(192, 168, 2, 200);
+        IPAddress local_ip(192, 168, 8, 200);
+        IPAddress gateway(192, 168, 8, 1);
     #endif
 #else
     // Set your Static IP address
-    IPAddress local_ip(192, 168, 2, 196);
+    IPAddress local_ip(192, 168, 2, 200);
+    IPAddress gateway(192, 168, 2, 1);
 #endif
 
 // Set your Gateway IP address
-IPAddress gateway(192, 168, 2, 1);
+
 IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(192, 168, 2, 1);        // optional
-IPAddress secondaryDNS(119, 18, 156, 10);       // optional
+// IPAddress primaryDNS(192, 168, 2, 1);        // optional
+// IPAddress secondaryDNS(119, 18, 156, 10);       // optional
 String hostName = HOST_NAME;
 
 AsyncWebServer server(80);
@@ -221,7 +225,7 @@ void reInitCellData()
         cellData[i].baseCodeName = "N/A";
         cellData[i].mcuCodeName = "N/A";
         cellData[i].siteLocation = "N/A";
-        cellData[i].bid = i + 100;
+        cellData[i].bid = 0;
         for (size_t j = 0; j < 45; j++)
         {
             cellData[i].vcell[j] = -1;
@@ -247,7 +251,7 @@ void declareStruct()
         cellData[i].baseCodeName = "N/A";
         cellData[i].mcuCodeName = "N/A";
         cellData[i].siteLocation = "N/A";
-        cellData[i].bid = i + 100;
+        cellData[i].bid = 0;
         for (size_t j = 0; j < 45; j++)
         {
             cellData[i].vcell[j] = -1;
@@ -1983,7 +1987,7 @@ void setup()
     delay(100);
     WiFi.setHostname(hostName.c_str());
     WiFi.mode(WIFI_STA);
-    if (!WiFi.config(local_ip, gateway, subnet, primaryDNS, secondaryDNS))
+    if (!WiFi.config(local_ip, gateway, subnet))
     {
         Serial.println("STA Failed to configure");
     }
