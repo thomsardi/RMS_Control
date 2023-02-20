@@ -40,7 +40,9 @@
 
 #define LAMINATE_ROOM 1 //uncomment to use green board laminate room
 
-// #define CYCLING 1
+#define CYCLING 1
+
+// #define DEBUG 1
 
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
@@ -94,9 +96,15 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 DynamicJsonDocument docBattery(1024);
 CRGB leds[NUM_LEDS];
-const char *ssid = "RnD_Sundaya";
-// const char *ssid = "abcde";
-const char *password = "sundaya22";
+
+#ifdef DEBUG
+    const char *ssid = "Redmi";
+    const char *password = "thomasredmi15";
+#else
+    const char *ssid = "RnD_Sundaya";
+    const char *password = "sundaya22";
+#endif
+
 const char *host = DATABASE_IP;
 // const char *host = "192.168.2.132";
 // const char *host = "192.168.2.174"; //green board
@@ -105,16 +113,15 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        // IPAddress local_ip(192, 168, 2, 210);
-        IPAddress local_ip(192, 168, 8, 190);
-        IPAddress gateway(192, 168, 8, 1);
+        IPAddress local_ip(192, 168, 2, 210);
+        IPAddress gateway(192, 168, 2, 1);
     #else
-        IPAddress local_ip(192, 168, 8, 200);
-        IPAddress gateway(192, 168, 8, 1);
+        IPAddress local_ip(192, 168, 2, 200);
+        IPAddress gateway(192, 168, 2, 1);
     #endif
 #else
     // Set your Static IP address
-    IPAddress local_ip(192, 168, 2, 200);
+    IPAddress local_ip(192, 168, 2, 222);
     IPAddress gateway(192, 168, 2, 1);
 #endif
 
@@ -211,6 +218,8 @@ unsigned long lastTime = 0;
 unsigned long lastBuzzer = 0;
 unsigned long lastReceivedSerialData = 0;
 unsigned long lastProcessResponse = 0;
+unsigned long lastReconnectMillis = 0;
+int reconnectInterval = 5000;
 String commandString;
 String responseString;
 String serverName = SERVER_NAME;
@@ -239,6 +248,7 @@ void reInitCellData()
             cellData[i].pack[j] = -1;
         }
         cellData[i].status = 0;
+        cellData[i].door = 0;
     }
 }
 
@@ -1951,15 +1961,38 @@ void addressing(bool isFromBottom)
     isAddressingCompleted = 1;
 }
 
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
+    Serial.print("Connected to ");
+    Serial.println(ssid);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("Subnet Mask: ");
+    Serial.println(WiFi.subnetMask());
+    Serial.print("Gateway IP: ");
+    Serial.println(WiFi.gatewayIP());
+    Serial.print("DNS 1: ");
+    Serial.println(WiFi.dnsIP(0));
+    Serial.print("DNS 2: ");
+    Serial.println(WiFi.dnsIP(1));
+    Serial.print("Hostname: ");
+    Serial.println(WiFi.getHostname());
+}
+
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+    leds[9] = CRGB::LawnGreen;
+    FastLED.setBrightness(20);
+    FastLED.show();
+    Serial.println("Wifi Connected");
+    digitalWrite(internalLed, HIGH);
+}
 
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
-  digitalWrite(internalLed, LOW);
-  Serial.println("Disconnected from WiFi access point");
-  Serial.print("WiFi lost connection. Reason: ");
-  Serial.println(info.wifi_sta_disconnected.reason);
-  Serial.println("Trying to Reconnect");
-  WiFi.begin(ssid, password);
-  digitalWrite(internalLed, HIGH);
+    digitalWrite(internalLed, LOW);
+    Serial.println("Disconnected from WiFi access point");
+    Serial.print("WiFi lost connection. Reason: ");
+    Serial.println(info.wifi_sta_disconnected.reason);
+    Serial.println("Trying to Reconnect");
+    WiFi.begin(ssid, password);
 }
 
 void resetUpdater()
@@ -1987,10 +2020,18 @@ void setup()
     delay(100);
     WiFi.setHostname(hostName.c_str());
     WiFi.mode(WIFI_STA);
-    if (!WiFi.config(local_ip, gateway, subnet))
-    {
-        Serial.println("STA Failed to configure");
-    }
+    
+    #ifndef DEBUG
+        if (!WiFi.config(local_ip, gateway, subnet))
+        {
+            Serial.println("STA Failed to configure");
+        }
+    #endif
+    
+    WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+    WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
     WiFi.begin(ssid, password);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
@@ -2035,21 +2076,6 @@ void setup()
         leds[9] = CRGB::LawnGreen;
         FastLED.setBrightness(20);
         FastLED.show();
-        Serial.println("");
-        Serial.print("Connected to ");
-        Serial.println(ssid);
-        Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
-        Serial.print("Subnet Mask: ");
-        Serial.println(WiFi.subnetMask());
-        Serial.print("Gateway IP: ");
-        Serial.println(WiFi.gatewayIP());
-        Serial.print("DNS 1: ");
-        Serial.println(WiFi.dnsIP(0));
-        Serial.print("DNS 2: ");
-        Serial.println(WiFi.dnsIP(1));
-        Serial.print("Hostname: ");
-        Serial.println(WiFi.getHostname());
         digitalWrite(internalLed, HIGH);
         // lcd.setCursor(0, 0);
         // lcd.print("IP :");
@@ -2066,11 +2092,11 @@ void setup()
         // lcd.setCursor(0,0);
         // lcd.print("Not Connected");
     }
-    WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
     delay(100); //wait a bit to stabilize the voltage and current consumption
     digitalWrite(relay[0], HIGH);
     digitalWrite(relay[1], HIGH);
-    setShiftRegisterState();
+    // setShiftRegisterState();
     declareStruct();
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
@@ -2358,26 +2384,40 @@ void setup()
     server.addHandler(setLedHandler);
     server.addHandler(restartCMSHandler);
     server.addHandler(restartRMSHandler);
-    server.addHandler(restartCMSViaPinHandler);
+    // server.addHandler(restartCMSViaPinHandler);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();
     resetUpdater();
     Serial.println("HTTP server started");
+    lastReconnectMillis = millis();
     // restartCMSViaPin();
     // delay(100);
+    dataCollectionCommand.exec = false;
+    cmsRestartCommand.bid = 255;
+    cmsRestartCommand.restart = 1;
+    delay(2000); //wait for CMS to boot
 }
 
 void loop()
 {
-    int isRxBufferEmpty = false;
+    int isRxBufferEmpty = false;    
     int isResetSerialTimer = false;
     int serialResponse = 0;
     int qty;
     // LedData ledData = ledAnimation.update();
     // Serial.println("Current Group : " + String(ledData.currentGroup));
     // Serial.println("Current String : " + String(ledData.currentString));
-
+    // Serial.println("Address List Size : " + String(addressList.size()));
+    
+    if ((WiFi.status() != WL_CONNECTED) && (millis() - lastReconnectMillis >= reconnectInterval)) {
+        digitalWrite(internalLed, LOW);
+        Serial.println("Reconnecting to WiFi...");
+        WiFi.disconnect();
+        WiFi.reconnect();
+        lastReconnectMillis = millis();
+    }
+    
     if (alarmCommand.buzzer)
     {
         if (millis() - lastBuzzer < 1000)
@@ -2509,17 +2549,20 @@ void loop()
     if(isResetSerialTimer)
     {
         lastReceivedSerialData = millis();
+        // Serial.println("updated last serial");
     }
 
     if (millis() - lastReceivedSerialData > 50)
     {
-        // Serial.println("No Serial 2 Data");
+        // Serial.println("No Serial Data");
         isRxBufferEmpty = true;
     }
     else
     {
         lastTime = millis();
     }
+
+    // Serial.println("Rx Buffer Empty : " + String(isRxBufferEmpty));
 
     if (addressingCommand.exec)
     {
@@ -2954,7 +2997,7 @@ void loop()
 
         if (cmsRestartCommand.restart)
         {
-            Serial.println("Restart CMS");
+            Serial.println("Restart CMS By Http Request");
             isGotCMSInfo = false;
             deviceAddress = 0;
             commandSequence = 0;
@@ -2964,6 +3007,7 @@ void loop()
                 {
                     if (dataCollectionCommand.exec == false)
                     {
+                        // Serial.println("Restart CMS Block");
                         resetUpdater();
                         sendRequest(cmsRestartCommand.bid, RESTART);
                         isRxBufferEmpty = false;
@@ -2976,6 +3020,7 @@ void loop()
                     }
                     else
                     {
+                        // Serial.println("Else Restart CMS Block");
                         dataCollectionCommand.exec = false;
                     }
                 }
@@ -3075,14 +3120,19 @@ void loop()
         
         if(dataCollectionCommand.exec)
         {
+            
             if (addressList.size() > 0) //check if addressing success
             {
+                // Serial.println("addressList > 0");
                 if (sendCommand)
                 {
+                    // Serial.println("send command");
                     if (isGotCMSInfo)
                     {
+                        // Serial.println("got cms info");
                         if (isRxBufferEmpty && !Serial2.available())
                         {
+                            // Serial.println("send request data");
                             // Serial.println("Cycle : " + String(cycle));
                             if(!cycle)
                             {
@@ -3115,8 +3165,10 @@ void loop()
                     }
                     else
                     {
+                        // Serial.println("dont have cms info");
                         if(isRxBufferEmpty && !Serial2.available())
                         {
+                            // Serial.println("send cms info request");
                             sendRequest(addressList.at(deviceAddress), CMSINFO);
                             isRxBufferEmpty = false;
                             sendCommand = false;
