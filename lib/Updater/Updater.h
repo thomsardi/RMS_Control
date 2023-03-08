@@ -8,11 +8,12 @@ class Updater
     public:
         Updater();
         int isUpdate();
-        void updateVcell();
-        void updateTemp();
-        void updateVpack();
+        void updateVcell(bool isVcellNormal);
+        void updateTemp(bool isTempNormal);
+        void updateVpack(bool isVpackNormal);
         void updateStatus();
         void resetUpdater();
+        bool isDataNormal();
     private:
         void resetUpdateStatus();
         int checkDataCompleted();
@@ -21,6 +22,9 @@ class Updater
         int _isTempUpdated;
         int _isVpackUpdated;
         int _isStatusUpdated;
+        bool _isVcellNormal;
+        bool _isTempNormal;
+        bool _isVpackNormal;
 };
 
 #endif

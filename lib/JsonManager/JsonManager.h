@@ -33,6 +33,7 @@ class JsonManager {
         int jsonAlarmCommandParser(const char* jsonInput, AlarmCommand &alarmCommand); // set alarm command
         int jsonDataCollectionCommandParser(const char* jsonInput); // set data collection command
         int jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam); // set alarm parameter
+        int jsonHardwareAlarmEnableParser(const char* jsonInput, HardwareAlarm& hardwareAlarm); // enable /disable alarm
         int jsonSleepCommandParser(const char* jsonInput); // set sleep command
         int jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite);
         int jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeWrite);

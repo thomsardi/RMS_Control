@@ -46,6 +46,11 @@ struct AlarmParam
     int32_t temp_min = 0;
 };
 
+struct HardwareAlarm
+{
+    int enable;
+};
+
 struct CellAlarm
 {
     int cell_number = 0;

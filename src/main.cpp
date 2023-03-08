@@ -38,7 +38,7 @@
 
 // #define AUTO_POST 1 //comment to disable server auto post
 
-#define LAMINATE_ROOM 1 //uncomment to use green board laminate room
+#define LAMINATE_ROOM 1 //uncomment to use board in laminate room
 
 #define CYCLING 1
 
@@ -73,7 +73,7 @@ int emergency;
 int reset = 0;
 int alert = 0;
 int relay[] = {22, 23};
-int buzzer = 19;
+int buzzer = 26;
 // create a global shift register object
 // parameters: <number of shift registers> (data pin, clock pin, latch pin)
 
@@ -143,6 +143,7 @@ CellData cellDataToSend;
 RMSInfo rmsInfo;
 CMSInfo cmsInfo[8];
 AlarmParam alarmParam;
+HardwareAlarm hardwareAlarm;
 CellAlarm cellAlarm[45];
 CellBalancingCommand cellBalancingCommand;
 AddressingCommand addressingCommand;
@@ -186,6 +187,7 @@ int dataComplete = 0;
 uint16_t msgCount[16];
 int addressListStorage[12];
 Vector<int> addressList(addressListStorage);
+bool isDataNormalList[12];
 
 bool balancingCommand = false;
 bool commandCompleted = false;
@@ -312,10 +314,10 @@ void declareStruct()
         }
     }
 
-    alarmParam.temp_max = 70000;
+    alarmParam.temp_max = 80000;
     alarmParam.temp_min = 20000;
     alarmParam.vcell_max = 3700;
-    alarmParam.vcell_min = 2700;
+    alarmParam.vcell_min = 3000;
 
     for (size_t i = 0; i < 45; i++)
     {
@@ -547,7 +549,7 @@ int readVcell(const String &input)
             http.end();
             */
         #endif
-        updater[startIndex].updateVcell();
+        updater[startIndex].updateVcell(isAllDataNormal);
         status = 1;
     }
     else
@@ -674,7 +676,7 @@ int readTemp(const String &input)
             // Serial2.print(output);
             // Serial2.print('\n');
         }
-        updater[startIndex].updateTemp();
+        updater[startIndex].updateTemp(isAllDataNormal);
         status = 1;
 
         #ifdef AUTO_POST
@@ -850,7 +852,7 @@ int readVpack(const String &input)
             // Serial2.print(output);
             // Serial2.print('\n');
         }
-        updater[startIndex].updateVpack();
+        updater[startIndex].updateVpack(isAllDataNormal);
         status = 1;
 
         #ifdef AUTO_POST
@@ -2241,6 +2243,18 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
+    AsyncCallbackJsonWebHandler *setHardwareAlarmHandler = new AsyncCallbackJsonWebHandler("/set-hardware-alarm", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonHardwareAlarmEnableParser(input.c_str(), hardwareAlarm);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
     AsyncCallbackJsonWebHandler *setSleepHandler = new AsyncCallbackJsonWebHandler("/set-sleep", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
         String response = R"(
@@ -2374,6 +2388,7 @@ void setup()
     server.addHandler(setAlarmHandler);
     server.addHandler(setDataCollectionHandler);
     server.addHandler(setAlarmParamHandler);
+    server.addHandler(setHardwareAlarmHandler);
     server.addHandler(setSleepHandler);
     server.addHandler(setWakeupHandler);
     server.addHandler(setFrameHandler);
@@ -2420,19 +2435,22 @@ void loop()
     
     if (alarmCommand.buzzer)
     {
-        if (millis() - lastBuzzer < 1000)
-        {
-            digitalWrite(buzzer, flasher);
-        }
-        else
-        {
-            lastBuzzer = millis();
-            flasher = !flasher;
-        }
-        // dataCollectionCommand.exec = false;
+        // Serial.println("Buzzer On");
+        digitalWrite(buzzer, HIGH);
+        // if (millis() - lastBuzzer < 1000)
+        // {
+        //     digitalWrite(buzzer, flasher);
+        // }
+        // else
+        // {
+        //     lastBuzzer = millis();
+        //     flasher = !flasher;
+        // }
+
     }
     else
     {
+        // Serial.println("Buzzer Off");
         lastBuzzer = millis();
         digitalWrite(buzzer, LOW);
         flasher = false;
@@ -2505,15 +2523,19 @@ void loop()
     {
         dataComplete += serialResponse;
     }
-
+    
     for(int i = 0; i < addressList.size(); i++)
     {
         int isUpdate = 0;
         isUpdate = updater[addressList.at(i) - 1].isUpdate();
+        
         // Serial.println("Device Address : " + String(addressList.at(i)));
         // Serial.println("is Update = " + String(isUpdate));
         if(isUpdate)
         {
+            bool isDataNormal = updater[addressList.at(i) - 1].isDataNormal();
+            isDataNormalList[addressList.at(i) - 1] = isDataNormal;
+
             Serial.println("Data is Complete.. Pushing to Database");
             msgCount[i]++;
             cellData[i].msgCount = msgCount[i];
@@ -2531,9 +2553,35 @@ void loop()
                 Serial.println(httpResponseCode);
                 http.end();
             #endif
-            
+            updater[addressList.at(i) - 1].resetUpdater();    
+        }
+        
+    }
+
+    if(dataCollectionCommand.exec)
+    {
+        if(hardwareAlarm.enable)
+        {
+            for(int i = 0; i < addressList.size(); i++)
+            {
+                // Serial.println("Address List : " + String(addressList.size()));
+                // Serial.println("Address List Content :" + String(addressList.at(i)));
+                bool dataNormal = isDataNormalList[addressList.at(i)-1];
+                // Serial.println("Data Normal : " + String(dataNormal));
+                if (!dataNormal)
+                {
+                    alarmCommand.buzzer = 1;
+                    // Serial.println("=========Buzzer On===========");
+                    break;
+                }
+                else
+                {
+                    alarmCommand.buzzer = 0;
+                }
+            }
         }
     }
+    
 
     if (commandSequence > 4)
     {

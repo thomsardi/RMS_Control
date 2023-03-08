@@ -368,6 +368,25 @@ int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& ala
     return 1;
 }
 
+int JsonManager::jsonHardwareAlarmEnableParser(const char* jsonInput, HardwareAlarm& hardwareAlarm)
+{
+    StaticJsonDocument<128> doc;
+
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+    if (!doc.containsKey("hardware_alarm")) 
+    {
+        return -1;
+    }
+    hardwareAlarm.enable = doc["hardware_alarm"];
+    return 1;
+}
+
 int JsonManager::jsonSleepCommandParser(const char* jsonInput)
 {
     int command = 0;

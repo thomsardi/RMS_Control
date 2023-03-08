@@ -17,14 +17,15 @@ int Updater::isUpdate()
     status = checkDataCompleted();
     if (status)
     {
-        resetUpdateStatus();
+        // resetUpdateStatus();
         Serial.println("Data Completed");
     }
     return status;
 }
 
-void Updater::updateVcell()
+void Updater::updateVcell(bool isVcellNormal)
 {
+    _isVcellNormal = isVcellNormal;
     if (_isVcellUpdated)
     {
         _isTempUpdated = false;
@@ -35,8 +36,9 @@ void Updater::updateVcell()
     Serial.println("Vcell Updated");
 }
 
-void Updater::updateTemp()
+void Updater::updateTemp(bool isTempNormal)
 {
+    _isTempNormal = isTempNormal;
     if (_isTempUpdated)
     {
         _isVcellUpdated = false;
@@ -48,8 +50,9 @@ void Updater::updateTemp()
     Serial.println("Temp Updated");
 }
 
-void Updater::updateVpack()
+void Updater::updateVpack(bool isVpackNormal)
 {
+    _isVpackNormal = isVpackNormal;
     if (_isVpackUpdated)
     {
         _isVcellUpdated = false;
@@ -78,6 +81,11 @@ void Updater::resetUpdateStatus()
     _isTempUpdated = false;
     _isVpackUpdated = false;
     _isStatusUpdated = false;
+}
+
+bool Updater::isDataNormal()
+{
+    return (_isVcellNormal & _isTempNormal);
 }
 
 int Updater::checkDataCompleted()
