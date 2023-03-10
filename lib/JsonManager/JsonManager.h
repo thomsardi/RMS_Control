@@ -11,13 +11,16 @@
     #define LOG_PRINTLN(x)
 #endif
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <JsonData.h>
+#include <ESPAsyncWebServer.h>
 
 class JsonManager {
     public :
         JsonManager();
         //GET method (read the data)
+        int processSingleCmsDataRequest(AsyncWebServerRequest *request); //extract get parameter, return bid index
         String buildSingleJsonData(const CellData &cellData);
         String buildJsonData(const CellData cellData[], const size_t numOfJsonObject = 8); // get 8 cms data
         String buildJsonRMSInfo(const RMSInfo& rmsInfo); // get rms info
@@ -26,6 +29,7 @@ class JsonManager {
         String buildJsonAlarmParameter(const AlarmParam& alarmParam); // get RMS alarm parameter
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)
         String buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize);
+        
 
         // POST method (write the data)
         int jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand &cellBalancingCommand); // set balancing command for each cell
@@ -35,6 +39,7 @@ class JsonManager {
         int jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam); // set alarm parameter
         int jsonHardwareAlarmEnableParser(const char* jsonInput, HardwareAlarm& hardwareAlarm); // enable /disable alarm
         int jsonSleepCommandParser(const char* jsonInput); // set sleep command
+        int jsonRmsCodeParser(const char* jsonInput, RmsCodeWrite &rmsCodeWrite);
         int jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite);
         int jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeWrite);
         int jsonCMSBaseCodeParser(const char* jsonInput, BaseCodeWrite &baseCodeWrite);
@@ -47,9 +52,11 @@ class JsonManager {
         int jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &cmsRestartCommand);
         int jsonCMSRestartPinParser(const char* jsonInput);
         int jsonRMSRestartParser(const char* jsonInput);
+        
 
         private :
         int getBit(int pos, int data);
+        bool isNumber(const String &input);
 };
 
 

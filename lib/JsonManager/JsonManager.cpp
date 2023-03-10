@@ -5,6 +5,34 @@ JsonManager::JsonManager()
 
 }
 
+bool JsonManager::isNumber(const String &input)
+{
+    for (char const &ch : input) {
+        if (std::isdigit(ch) == 0) 
+            return false;
+    }
+    return true;
+}
+
+int JsonManager::processSingleCmsDataRequest(AsyncWebServerRequest *request)
+{
+    int bid = 0;
+    if(!request->hasParam("bid"))
+    {
+        return -1;
+    }
+    String input = request->getParam("bid")->value();
+    if(isNumber(input))
+    {
+        bid = input.toInt();
+        return bid;
+    }
+    else
+    {
+        return -1;
+    }
+}
+
 String JsonManager::buildSingleJsonData(const CellData &cellData)
 {
     String result;
@@ -79,7 +107,7 @@ String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
 {
     String result;
     DynamicJsonDocument doc(256);
-    doc["p_code"] = rmsInfo.rmsCode;
+    doc["rms_code"] = rmsInfo.rmsCode;
     doc["ver"] = rmsInfo.ver;
     doc["ip"] = rmsInfo.ip;
     doc["mac"] = rmsInfo.mac;
@@ -406,6 +434,34 @@ int JsonManager::jsonSleepCommandParser(const char* jsonInput)
     }
 
     command = doc["sleep"].as<signed int>(); // 0
+    return command;
+}
+
+int JsonManager::jsonRmsCodeParser(const char* jsonInput, RmsCodeWrite &rmsCodeWrite)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (!doc.containsKey("rms_code_write")) 
+    {
+        return -1;
+    }
+
+    rmsCodeWrite.write = doc["rms_code_write"]; // 1
+    if (rmsCodeWrite.write)
+    {
+        rmsCodeWrite.rmsCode = doc["rms_code"].as<String>();
+        command = rmsCodeWrite.write;
+    }
+    Serial.println(rmsCodeWrite.rmsCode);
     return command;
 }
 

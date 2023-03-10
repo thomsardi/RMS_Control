@@ -132,6 +132,12 @@ struct FrameWrite
     String frameName = "";
 };
 
+struct RmsCodeWrite
+{
+    int write = 0;
+    String rmsCode = "";
+};
+
 struct CMSCodeWrite
 {
     int bid = 0;

@@ -23,6 +23,10 @@
 #include <Wire.h>
 #include <ESPmDNS.h>
 #include <LedAnimation.h>
+#include <EEPROM.h>
+
+#define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
+#define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
 
 #define RXD2 16
 #define TXD2 17
@@ -113,7 +117,7 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        IPAddress local_ip(192, 168, 2, 210);
+        IPAddress local_ip(192, 168, 2, 212);
         IPAddress gateway(192, 168, 2, 1);
     #else
         IPAddress local_ip(192, 168, 2, 200);
@@ -152,6 +156,7 @@ SleepCommand sleepCommand;
 DataCollectionCommand dataCollectionCommand;
 CellBalancingStatus cellBalancingStatus[8];
 CommandStatus commandStatus;
+RmsCodeWrite rmsCodeWrite;
 FrameWrite frameWrite;
 CMSCodeWrite cmsCodeWrite;
 BaseCodeWrite baseCodeWrite;
@@ -226,6 +231,7 @@ String commandString;
 String responseString;
 String serverName = SERVER_NAME;
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
+String rmsCode = "RMS-000000000";
 
 void reInitCellData()
 {
@@ -263,23 +269,23 @@ void declareStruct()
         cellData[i].baseCodeName = "N/A";
         cellData[i].mcuCodeName = "N/A";
         cellData[i].siteLocation = "N/A";
-        cellData[i].bid = 0;
-        for (size_t j = 0; j < 45; j++)
-        {
-            cellData[i].vcell[j] = -1;
-        }
-        for (size_t j = 0; j < 9; j++)
-        {
-            cellData[i].temp[j] = -1;
-        }
-        for (size_t j = 0; j < 3; j++)
-        {
-            cellData[i].pack[j] = -1;
-        }
-        cellData[i].status = 0;
-        cellData[i].door = 0;
+        // cellData[i].bid = 0;
+        // for (size_t j = 0; j < 45; j++)
+        // {
+        //     cellData[i].vcell[j] = 0;
+        // }
+        // for (size_t j = 0; j < 9; j++)
+        // {
+        //     cellData[i].temp[j] = 0;
+        // }
+        // for (size_t j = 0; j < 3; j++)
+        // {
+        //     cellData[i].pack[j] = 0;
+        // }
+        // cellData[i].status = 0;
+        // cellData[i].door = 0;
     }
-    rmsInfo.rmsCode = "RMS-32-01";
+    rmsInfo.rmsCode = rmsCode;
     rmsInfo.ver = "1.0.0";
     rmsInfo.ip = WiFi.localIP().toString();
     rmsInfo.mac = WiFi.macAddress();
@@ -287,31 +293,23 @@ void declareStruct()
 
     for (size_t i = 0; i < 8; i++)
     {
-        cmsInfo[i].bid = i;
+        cmsInfo[i].bid = 0;
         cmsInfo[i].cmsCodeName = "N/A";
         cmsInfo[i].baseCodeName = "N/A";
         cmsInfo[i].mcuCodeName = "N/A";
         cmsInfo[i].siteLocation = "N/A";
         cmsInfo[i].ver = "N/A";
         cmsInfo[i].chip = "N/A";
-        // if (!(i % 2))
-        // {
-        //     cmsInfo[i].chip = "dvc1024";
-        // }
-        // else
-        // {
-        //     cmsInfo[i].chip = "bq76940";
-        // }
     }
 
     for (size_t i = 0; i < 8; i++)
     {
         addressList.push_back(i+1);
-        cellBalancingStatus[i].bid = i;
-        for (size_t j = 0; j < 45; j++)
-        {
-            cellBalancingStatus[i].cball[j] = -1;
-        }
+        // cellBalancingStatus[i].bid = i;
+        // for (size_t j = 0; j < 45; j++)
+        // {
+        //     cellBalancingStatus[i].cball[j] = -1;
+        // }
     }
 
     alarmParam.temp_max = 80000;
@@ -319,16 +317,33 @@ void declareStruct()
     alarmParam.vcell_max = 3700;
     alarmParam.vcell_min = 3000;
 
-    for (size_t i = 0; i < 45; i++)
-    {
-        cellAlarm[i].cell_number = i + 1;
-        cellAlarm[i].alm_status = 0;
-        cellAlarm[i].alm_code = 0;
-    }
+    // for (size_t i = 0; i < 45; i++)
+    // {
+    //     cellAlarm[i].cell_number = i + 1;
+    //     cellAlarm[i].alm_status = 0;
+    //     cellAlarm[i].alm_code = 0;
+    // }
     commandStatus.addrCommand = 0;
     commandStatus.alarmCommand = 0;
     commandStatus.dataCollectionCommand = 0;
     commandStatus.sleepCommand = 0;
+}
+
+int writeToEeprom(int dataAddress, int flagAddress, String &newName, String &oldName)
+{
+    if(newName.length() < 31) // reserved 1 character for null terminator
+    {
+        if(newName != oldName)
+        {
+            EEPROM.writeString(dataAddress, newName);
+            EEPROM.write(flagAddress, 1);
+            EEPROM.commit();
+            oldName = newName;
+            return 1; //success writing to eeprom
+        }
+        return 0; //if newName is equal to oldName
+    }
+    return -1; //failed to write
 }
 
 template <typename T>
@@ -2008,6 +2023,11 @@ void resetUpdater()
 
 void setup()
 {
+    EEPROM.begin(256);
+    if(EEPROM.read(EEPROM_RMS_ADDRESS_CONFIGURED_FLAG) == 1)
+    {
+        rmsCode = EEPROM.readString(EEPROM_RMS_CODE_ADDRESS);
+    }
     pinMode(relay[0], OUTPUT);
     pinMode(relay[1], OUTPUT);
     pinMode(buzzer, OUTPUT);
@@ -2104,7 +2124,22 @@ void setup()
     ledAnimation.setLedStringNumber(8);
     ledAnimation.run();
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        request->send(200, "text/plain", "Hi! I am ESP32."); });
+        request->send(200, "text/plain", "Talis 30 MJ Rack Management System"); });
+
+    server.on("/get-single-cms-data", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+        size_t cellDataArrSize = sizeof(cellData) / sizeof(cellData[0]);
+        int bid = jsonManager.processSingleCmsDataRequest(request);
+        if(bid > 0 && bid <= addressList.size())
+        {
+            String jsonOutput = jsonManager.buildSingleJsonData(cellData[bid-1]);
+            request->send(200, "application/json", jsonOutput);
+        }
+        else
+        {
+            request->send(400);
+        }
+    });
 
     server.on("/get-cms-data", HTTP_GET, [](AsyncWebServerRequest *request)
     {
@@ -2323,6 +2358,28 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
+    AsyncCallbackJsonWebHandler *setRmsCodeHandler = new AsyncCallbackJsonWebHandler("/set-rms-code", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = 0;
+        jsonManager.jsonRmsCodeParser(input.c_str(), rmsCodeWrite);
+        if (rmsCodeWrite.write)
+        {
+            status = writeToEeprom(EEPROM_RMS_CODE_ADDRESS, EEPROM_RMS_ADDRESS_CONFIGURED_FLAG, rmsCodeWrite.rmsCode, rmsCode);
+            if(status)
+            {
+                rmsInfo.rmsCode = rmsCodeWrite.rmsCode;
+            }
+        }
+        rmsCodeWrite.write = 0;
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
     AsyncCallbackJsonWebHandler *setFrameHandler = new AsyncCallbackJsonWebHandler("/set-frame", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
         String response = R"(
@@ -2391,6 +2448,7 @@ void setup()
     server.addHandler(setHardwareAlarmHandler);
     server.addHandler(setSleepHandler);
     server.addHandler(setWakeupHandler);
+    server.addHandler(setRmsCodeHandler);
     server.addHandler(setFrameHandler);
     server.addHandler(setCmsCodeHandler);
     server.addHandler(setBaseCodeHandler);
