@@ -19,6 +19,7 @@ struct CellData
 struct RMSInfo
 {
     String rmsCode = "";
+    String rackSn = "";
     String ver = "";
     String ip = "";
     String mac = "";
@@ -136,6 +137,12 @@ struct RmsCodeWrite
 {
     int write = 0;
     String rmsCode = "";
+};
+
+struct RmsRackSnWrite
+{
+    int write = 0;
+    String rackSn = "";
 };
 
 struct CMSCodeWrite

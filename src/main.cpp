@@ -28,6 +28,9 @@
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
 
+#define EEPROM_RACK_SN_ADDRESS 0x30    //Address for Rack Serial Number
+#define EEPROM_RACK_SN_CONFIGURED_FLAG 0x50 //Address for configured flag
+
 #define RXD2 16
 #define TXD2 17
 
@@ -157,6 +160,7 @@ DataCollectionCommand dataCollectionCommand;
 CellBalancingStatus cellBalancingStatus[8];
 CommandStatus commandStatus;
 RmsCodeWrite rmsCodeWrite;
+RmsRackSnWrite rmsRackSnWrite;
 FrameWrite frameWrite;
 CMSCodeWrite cmsCodeWrite;
 BaseCodeWrite baseCodeWrite;
@@ -231,7 +235,8 @@ String commandString;
 String responseString;
 String serverName = SERVER_NAME;
 // String serverName = "http://desktop-gu3m4fp.local/mydatabase/";
-String rmsCode = "RMS-000000000";
+String rmsCode = "RMS-32-NA";
+String rackSn = "RACK-32-NA";
 
 void reInitCellData()
 {
@@ -286,6 +291,7 @@ void declareStruct()
         // cellData[i].door = 0;
     }
     rmsInfo.rmsCode = rmsCode;
+    rmsInfo.rackSn = rackSn;
     rmsInfo.ver = "1.0.0";
     rmsInfo.ip = WiFi.localIP().toString();
     rmsInfo.mac = WiFi.macAddress();
@@ -2028,6 +2034,12 @@ void setup()
     {
         rmsCode = EEPROM.readString(EEPROM_RMS_CODE_ADDRESS);
     }
+
+    if(EEPROM.read(EEPROM_RACK_SN_CONFIGURED_FLAG) == 1)
+    {
+        rackSn = EEPROM.readString(EEPROM_RACK_SN_ADDRESS);
+    }
+
     pinMode(relay[0], OUTPUT);
     pinMode(relay[1], OUTPUT);
     pinMode(buzzer, OUTPUT);
@@ -2380,6 +2392,28 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
+    AsyncCallbackJsonWebHandler *setRackSnHandler = new AsyncCallbackJsonWebHandler("/set-rack-sn", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = 0;
+        jsonManager.jsonRmsRackSnParser(input.c_str(), rmsRackSnWrite);
+        if (rmsRackSnWrite.write)
+        {
+            status = writeToEeprom(EEPROM_RACK_SN_ADDRESS, EEPROM_RACK_SN_CONFIGURED_FLAG, rmsRackSnWrite.rackSn, rackSn);
+            if(status)
+            {
+                rmsInfo.rackSn = rmsRackSnWrite.rackSn;
+            }
+        }
+        rmsRackSnWrite.write = 0;
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
     AsyncCallbackJsonWebHandler *setFrameHandler = new AsyncCallbackJsonWebHandler("/set-frame", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
         String response = R"(
@@ -2449,6 +2483,7 @@ void setup()
     server.addHandler(setSleepHandler);
     server.addHandler(setWakeupHandler);
     server.addHandler(setRmsCodeHandler);
+    server.addHandler(setRackSnHandler);
     server.addHandler(setFrameHandler);
     server.addHandler(setCmsCodeHandler);
     server.addHandler(setBaseCodeHandler);

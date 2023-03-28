@@ -108,6 +108,7 @@ String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
     String result;
     DynamicJsonDocument doc(256);
     doc["rms_code"] = rmsInfo.rmsCode;
+    doc["rack_sn"] = rmsInfo.rackSn;
     doc["ver"] = rmsInfo.ver;
     doc["ip"] = rmsInfo.ip;
     doc["mac"] = rmsInfo.mac;
@@ -462,6 +463,34 @@ int JsonManager::jsonRmsCodeParser(const char* jsonInput, RmsCodeWrite &rmsCodeW
         command = rmsCodeWrite.write;
     }
     Serial.println(rmsCodeWrite.rmsCode);
+    return command;
+}
+
+int JsonManager::jsonRmsRackSnParser(const char* jsonInput, RmsRackSnWrite &rmsRackSnWrite)
+{
+    int command = 0;
+    int bid = 0;
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (!doc.containsKey("rack_sn_write")) 
+    {
+        return -1;
+    }
+
+    rmsRackSnWrite.write = doc["rack_sn_write"]; // 1
+    if (rmsRackSnWrite.write)
+    {
+        rmsRackSnWrite.rackSn = doc["rack_sn"].as<String>();
+        command = rmsRackSnWrite.write;
+    }
+    Serial.println(rmsRackSnWrite.rackSn);
     return command;
 }
 
