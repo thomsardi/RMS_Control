@@ -15,6 +15,7 @@
 #include <ArduinoJson.h>
 #include <JsonData.h>
 #include <ESPAsyncWebServer.h>
+#include <Vector.h>
 
 class JsonManager {
     public :
@@ -22,13 +23,15 @@ class JsonManager {
         //GET method (read the data)
         int processSingleCmsDataRequest(AsyncWebServerRequest *request); //extract get parameter, return bid index
         String buildSingleJsonData(const CellData &cellData);
-        String buildJsonData(const CellData cellData[], const size_t numOfJsonObject = 8); // get 8 cms data
+        int buildJsonData(AsyncWebServerRequest *request, const Data &data, String &buffer); //get variable cms data
+        String buildJsonData(AsyncWebServerRequest *request, const CellData cellData[], const size_t numOfJsonObject = 8); // get 8 cms data
         String buildJsonRMSInfo(const RMSInfo& rmsInfo); // get rms info
         String buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonObject = 8); // get 8 cms info
         String buildJsonBalancingStatus(const CellBalancingStatus cellBalancingStatus[], size_t numOfJsonObject); //get 8 cms balancing status
         String buildJsonAlarmParameter(const AlarmParam& alarmParam); // get RMS alarm parameter
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)
         String buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize);
+        void parser(const String &input, char delimiter, Vector<String> &valueVec);
         
 
         // POST method (write the data)

@@ -65,12 +65,70 @@ String JsonManager::buildSingleJsonData(const CellData &cellData)
     return result;
 }
 
-String JsonManager::buildJsonData(const CellData cellData[], const size_t numOfJsonObject) 
+int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data, String &buffer)
+{
+    int bid = 0;
+    String value[12];
+    Vector <String> valueVec;
+    valueVec.setStorage(value);
+    DynamicJsonDocument doc(12288);
+    CellData *pointer;
+    doc["rack_sn"] = data.rackSn;
+    String input = request->getParam("bid")->value();
+    if (!request->hasParam("bid"))
+    {
+        return -1;
+    }
+    parser(input, ',', valueVec);
+    JsonArray cms = doc.createNestedArray("cms_data");
+    for (auto &temp : valueVec)
+    {
+        if(isNumber(temp))
+        {
+            bid = temp.toInt();
+            int index = bid - 1;
+            if (index < 0 || index >= data.size)
+            {
+                continue;
+            }
+            JsonObject cms_0 = cms.createNestedObject();
+            pointer = data.p + index;
+            cms_0["msg_count"] = pointer->msgCount;
+            cms_0["frame_name"] = pointer->frameName;
+            cms_0["cms_code"] = pointer->cmsCodeName;
+            cms_0["base_code"] = pointer->baseCodeName;
+            cms_0["mcu_code"] = pointer->mcuCodeName;
+            cms_0["site_location"] = pointer->siteLocation;
+            cms_0["bid"] = pointer->bid;
+            JsonArray vcell = cms_0.createNestedArray("vcell");
+            for ( int j = 0; j < 45; j++)
+            {
+                vcell.add(pointer->vcell[j]);
+            }
+            JsonArray temp = cms_0.createNestedArray("temp");
+            for (int j = 0; j < 9; j++)
+            {
+                temp.add(pointer->temp[j]);
+            }
+            JsonArray vpack = cms_0.createNestedArray("pack");
+            for (int k = 0; k < 3; k++)
+            {
+                vpack.add(pointer->pack[k]);
+            }
+            cms_0["wake_status"] = pointer->status;
+            cms_0["door_status"] = pointer->door;
+        }
+    }
+    serializeJson(doc, buffer);
+    return 1;
+}
+
+String JsonManager::buildJsonData(AsyncWebServerRequest *request, const CellData cellData[], const size_t numOfJsonObject) 
 {
     String result;
+    int bid = 0;
     DynamicJsonDocument doc(12288); //for 8 object
     JsonArray cms = doc.createNestedArray("cms_data");
-    
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_0 = cms.createNestedObject();
@@ -900,4 +958,28 @@ int JsonManager::getBit(int pos, int data)
   int temp = data >> pos;
   temp = temp & 0x01;
   return temp;
+}
+
+void JsonManager::parser(const String &input, char delimiter, Vector<String> &valueVec)
+{
+    int index = 0;
+    int lastIndex = 0;
+    int i = 0;
+    bool isContinue = true;
+    while(isContinue)
+    {
+        if (i >= valueVec.max_size())
+        {
+            break;
+        }
+        lastIndex = input.indexOf(delimiter, index);
+        String value = input.substring(index, lastIndex);
+        valueVec.push_back(value);
+        i++;
+        if (lastIndex <= 0)
+        {
+            isContinue = false;
+        }
+        index = lastIndex+1;
+    }
 }

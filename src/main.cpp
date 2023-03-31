@@ -24,12 +24,15 @@
 #include <ESPmDNS.h>
 #include <LedAnimation.h>
 #include <EEPROM.h>
+#include <OneButton.h>
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
 
 #define EEPROM_RACK_SN_ADDRESS 0x30    //Address for Rack Serial Number
 #define EEPROM_RACK_SN_CONFIGURED_FLAG 0x50 //Address for configured flag
+
+#define HARDWARE_ALARM_ENABLED 0x60 //Address to check hardware enabled alarm
 
 #define RXD2 16
 #define TXD2 17
@@ -48,6 +51,8 @@
 #define LAMINATE_ROOM 1 //uncomment to use board in laminate room
 
 #define CYCLING 1
+
+#define HARDWARE_ALARM 1
 
 // #define DEBUG 1
 
@@ -104,6 +109,8 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 DynamicJsonDocument docBattery(1024);
 CRGB leds[NUM_LEDS];
 
+hw_timer_t *myTimer = NULL;
+
 #ifdef DEBUG
     const char *ssid = "Redmi";
     const char *password = "thomasredmi15";
@@ -144,9 +151,11 @@ JsonManager jsonManager;
 RMSManager rmsManager;
 LedAnimation ledAnimation(8,8, true);
 Updater updater[8];
+OneButton startButton(32, true, true);
 
+Data data;
 CellData cellData[8];
-CellData cellDataToSend;
+int cellDataSize = sizeof(cellData) / sizeof(cellData[0]);
 RMSInfo rmsInfo;
 CMSInfo cmsInfo[8];
 AlarmParam alarmParam;
@@ -196,7 +205,7 @@ int dataComplete = 0;
 uint16_t msgCount[16];
 int addressListStorage[12];
 Vector<int> addressList(addressListStorage);
-bool isDataNormalList[12];
+int8_t isDataNormalList[12] = {-1};
 
 bool balancingCommand = false;
 bool commandCompleted = false;
@@ -219,6 +228,7 @@ bool lastLedset = false;
 bool isCmsRestartPin = false;
 bool cycle = false;
 bool isFromSequence = false;
+bool addressingByButton = false;
 
 int isAddressingCompleted = 0;
 int commandSequence = 0;
@@ -267,7 +277,10 @@ void reInitCellData()
 
 void declareStruct()
 {
-    for (size_t i = 0; i < 8; i++)
+    data.rackSn = rackSn;
+    data.p = cellData;
+    data.size = cellDataSize;
+    for (size_t i = 0; i < cellDataSize; i++)
     {
         cellData[i].frameName = "N/A";
         cellData[i].cmsCodeName = "N/A";
@@ -333,6 +346,7 @@ void declareStruct()
     commandStatus.alarmCommand = 0;
     commandStatus.dataCollectionCommand = 0;
     commandStatus.sleepCommand = 0;
+
 }
 
 int writeToEeprom(int dataAddress, int flagAddress, String &newName, String &oldName)
@@ -1915,8 +1929,10 @@ void addressing(bool isFromBottom)
         Serial.print("number = ");
         Serial.println(x);
         sr.set(x, HIGH);
+        digitalWrite(internalLed,HIGH);
         delay(200);
         sr.set(x, LOW);
+        digitalWrite(internalLed,LOW);
         delay(200);
         
         while (Serial2.available()) //get for the response {"BID_STATUS" : 1}
@@ -2026,9 +2042,46 @@ void resetUpdater()
     }
     
 }
+void buttonClicked()
+{
+    // Serial.println("Clicked");
+    addressingByButton = 1;
+}
+
+void buttonLongPressed()
+{
+    dataCollectionCommand.exec = 0;
+    alarmCommand.buzzer = 0;
+    cmsRestartCommand.bid = 255;
+    cmsRestartCommand.restart = 1;
+    timerStop(myTimer);
+    timerWrite(myTimer, 0);
+}
+
+void buttonDoubleClicked()
+{
+    dataCollectionCommand.exec = 0;
+    alarmCommand.buzzer = 0;
+    cmsRestartCommand.bid = 255;
+    cmsRestartCommand.restart = 1;
+    timerStop(myTimer);
+    timerWrite(myTimer, 0);
+}
+
+void IRAM_ATTR onTimer()
+{
+    if (alarmCommand.buzzer)
+    {
+        digitalWrite(buzzer, !digitalRead(buzzer));
+    }
+}
 
 void setup()
 {
+    startButton.attachClick(buttonClicked);
+    startButton.attachLongPressStart(buttonLongPressed);
+    // startButton.attachDoubleClick(buttonDoubleClicked);
+    startButton.setDebounceTicks(50);
     EEPROM.begin(256);
     if(EEPROM.read(EEPROM_RMS_ADDRESS_CONFIGURED_FLAG) == 1)
     {
@@ -2039,7 +2092,9 @@ void setup()
     {
         rackSn = EEPROM.readString(EEPROM_RACK_SN_ADDRESS);
     }
-
+    myTimer = timerBegin(0, 80, true);
+    timerAttachInterrupt(myTimer, &onTimer, true);
+    timerAlarmWrite(myTimer, 500000, true);
     pinMode(relay[0], OUTPUT);
     pinMode(relay[1], OUTPUT);
     pinMode(buzzer, OUTPUT);
@@ -2056,10 +2111,10 @@ void setup()
     WiFi.mode(WIFI_STA);
     
     #ifndef DEBUG
-        if (!WiFi.config(local_ip, gateway, subnet))
-        {
-            Serial.println("STA Failed to configure");
-        }
+        // if (!WiFi.config(local_ip, gateway, subnet))
+        // {
+        //     Serial.println("STA Failed to configure");
+        // }
     #endif
     
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
@@ -2126,11 +2181,14 @@ void setup()
         // lcd.setCursor(0,0);
         // lcd.print("Not Connected");
     }
-
+    timerAlarmEnable(myTimer);
     delay(100); //wait a bit to stabilize the voltage and current consumption
     digitalWrite(relay[0], HIGH);
     digitalWrite(relay[1], HIGH);
     // setShiftRegisterState();
+    #ifdef HARDWARE_ALARM
+        hardwareAlarm.enable = 1;
+    #endif
     declareStruct();
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
@@ -2156,8 +2214,22 @@ void setup()
     server.on("/get-cms-data", HTTP_GET, [](AsyncWebServerRequest *request)
     {
         size_t cellDataArrSize = sizeof(cellData) / sizeof(cellData[0]);
-        String jsonOutput = jsonManager.buildJsonData(cellData, cellDataArrSize);
+        String jsonOutput = jsonManager.buildJsonData(request, cellData, cellDataArrSize);
         request->send(200, "application/json", jsonOutput); });
+
+    server.on("/get-data", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+        String buffer;
+        data.rackSn = rackSn;
+        if(jsonManager.buildJsonData(request, data, buffer))
+        {
+            request->send(200, "application/json", buffer);
+        }
+        else
+        {
+            request->send(400);
+        }
+    });
 
     server.on("/get-device-general-info", HTTP_GET, [](AsyncWebServerRequest *request)
     {
@@ -2513,6 +2585,7 @@ void loop()
     int isResetSerialTimer = false;
     int serialResponse = 0;
     int qty;
+    startButton.tick();
     // LedData ledData = ledAnimation.update();
     // Serial.println("Current Group : " + String(ledData.currentGroup));
     // Serial.println("Current String : " + String(ledData.currentString));
@@ -2529,7 +2602,7 @@ void loop()
     if (alarmCommand.buzzer)
     {
         // Serial.println("Buzzer On");
-        digitalWrite(buzzer, HIGH);
+        // digitalWrite(buzzer, HIGH);
         // if (millis() - lastBuzzer < 1000)
         // {
         //     digitalWrite(buzzer, flasher);
@@ -2621,7 +2694,6 @@ void loop()
     {
         int isUpdate = 0;
         isUpdate = updater[addressList.at(i) - 1].isUpdate();
-        
         // Serial.println("Device Address : " + String(addressList.at(i)));
         // Serial.println("is Update = " + String(isUpdate));
         if(isUpdate)
@@ -2632,6 +2704,7 @@ void loop()
             Serial.println("Data is Complete.. Pushing to Database");
             msgCount[i]++;
             cellData[i].msgCount = msgCount[i];
+            data.rackSn = rackSn;
             #ifdef AUTO_POST
                 String phpName = "update.php";
                 String link = serverName + phpName;
@@ -2655,22 +2728,42 @@ void loop()
     {
         if(hardwareAlarm.enable)
         {
+            bool error = true;
+            int8_t tempData;
+            bool buzzerState = 0;
             for(int i = 0; i < addressList.size(); i++)
             {
+                // Serial.println("Evaluate data normal");
                 // Serial.println("Address List : " + String(addressList.size()));
                 // Serial.println("Address List Content :" + String(addressList.at(i)));
-                bool dataNormal = isDataNormalList[addressList.at(i)-1];
-                // Serial.println("Data Normal : " + String(dataNormal));
-                if (!dataNormal)
+                tempData = isDataNormalList[addressList.at(i)-1];
+                // Serial.println("temp data : " + String(tempData));
+                if (tempData < 0)
                 {
-                    alarmCommand.buzzer = 1;
-                    // Serial.println("=========Buzzer On===========");
                     break;
                 }
                 else
                 {
-                    alarmCommand.buzzer = 0;
+                    error = false;
+                    if (tempData > 0)
+                    {
+                        buzzerState = 0;
+                    }
+                    else
+                    {
+                        buzzerState = 1;
+                    }
                 }
+                // Serial.println("Data Normal : " + String(dataNormal));
+            }
+            if(!error)
+            {
+                alarmCommand.buzzer = buzzerState;
+            }
+            else
+            {
+                // Serial.println("data normal not updated");
+                alarmCommand.buzzer = 0;
             }
         }
     }
@@ -2705,6 +2798,31 @@ void loop()
 
     // Serial.println("Rx Buffer Empty : " + String(isRxBufferEmpty));
 
+    if (addressingByButton)
+    {
+        delay(100);
+        while (Serial2.available())
+        {
+            Serial2.read();
+        }
+        
+        resetUpdater();
+        dataCollectionCommand.exec = 0;
+        Serial.println("Doing Addressing");
+        // performAddressing();
+        // performAddressingTest2();
+        addressing(true);
+        addressingCommand.exec = 0;
+        addressingByButton = 0;
+        sendCommand = true;
+        Serial.println("Addressing Finished");
+        isGotCMSInfo = false;
+        lastTime = millis();
+        digitalWrite(internalLed, HIGH);
+        dataCollectionCommand.exec = 1;
+        timerStart(myTimer);
+    }
+
     if (addressingCommand.exec)
     {
         // perform addressing
@@ -2718,6 +2836,7 @@ void loop()
         
         resetUpdater();
         dataCollectionCommand.exec = 0;
+        addressingByButton = 0;
         Serial.println("Doing Addressing");
         // performAddressing();
         // performAddressingTest2();

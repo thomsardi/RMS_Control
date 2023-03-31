@@ -3,6 +3,7 @@
 struct CellData
 {
     uint16_t msgCount = 0;
+    String rackSn = "";
     String frameName = "";
     String cmsCodeName = "";
     String baseCodeName = "";
@@ -14,6 +15,12 @@ struct CellData
     int32_t pack[3] = {0};
     int status = 0;
     int door = 0;
+};
+
+struct Data {
+    String rackSn = "";
+    CellData *p;
+    int size;
 };
 
 struct RMSInfo
