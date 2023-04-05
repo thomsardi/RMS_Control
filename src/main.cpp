@@ -115,7 +115,8 @@ hw_timer_t *myTimer = NULL;
     const char *ssid = "Redmi";
     const char *password = "thomasredmi15";
 #else
-    const char *ssid = "RnD_Sundaya";
+    // const char *ssid = "RnD_Sundaya";
+    const char *ssid = "Laminate";
     const char *password = "sundaya22";
 #endif
 
@@ -127,11 +128,11 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        IPAddress local_ip(192, 168, 2, 212);
-        IPAddress gateway(192, 168, 2, 1);
+        IPAddress local_ip(200, 10, 2, 211);
+        IPAddress gateway(200, 10, 2, 1);
     #else
-        IPAddress local_ip(192, 168, 2, 200);
-        IPAddress gateway(192, 168, 2, 1);
+        IPAddress local_ip(200, 10, 2, 200);
+        IPAddress gateway(200, 10, 2, 1);
     #endif
 #else
     // Set your Static IP address
@@ -1998,6 +1999,7 @@ void addressing(bool isFromBottom)
         // sr.setAllLow();
     }
     isAddressingCompleted = 1;
+    digitalWrite(internalLed,HIGH);
 }
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
@@ -2015,14 +2017,14 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.println(WiFi.dnsIP(1));
     Serial.print("Hostname: ");
     Serial.println(WiFi.getHostname());
-}
-
-void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
     leds[9] = CRGB::LawnGreen;
     FastLED.setBrightness(20);
     FastLED.show();
-    Serial.println("Wifi Connected");
     digitalWrite(internalLed, HIGH);
+}
+
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+    Serial.println("Wifi Connected");
 }
 
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
@@ -2031,7 +2033,8 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.print("WiFi lost connection. Reason: ");
     Serial.println(info.wifi_sta_disconnected.reason);
     Serial.println("Trying to Reconnect");
-    WiFi.begin(ssid, password);
+    // WiFi.begin(ssid, password);
+    WiFi.begin(ssid);
 }
 
 void resetUpdater()
@@ -2111,17 +2114,18 @@ void setup()
     WiFi.mode(WIFI_STA);
     
     #ifndef DEBUG
-        // if (!WiFi.config(local_ip, gateway, subnet))
-        // {
-        //     Serial.println("STA Failed to configure");
-        // }
+        if (!WiFi.config(local_ip, gateway, subnet))
+        {
+            Serial.println("STA Failed to configure");
+        }
     #endif
     
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-    WiFi.begin(ssid, password);
+    // WiFi.begin(ssid, password);
+    WiFi.begin(ssid);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
