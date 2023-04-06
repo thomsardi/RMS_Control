@@ -115,8 +115,8 @@ hw_timer_t *myTimer = NULL;
     const char *ssid = "Redmi";
     const char *password = "thomasredmi15";
 #else
-    // const char *ssid = "RnD_Sundaya";
-    const char *ssid = "Laminate";
+    const char *ssid = "RnD_Sundaya";
+    // const char *ssid = "Laminate";
     const char *password = "sundaya22";
 #endif
 
@@ -128,8 +128,8 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        IPAddress local_ip(200, 10, 2, 211);
-        IPAddress gateway(200, 10, 2, 1);
+        // IPAddress local_ip(200, 10, 2, 211);
+        // IPAddress gateway(200, 10, 2, 1);
     #else
         IPAddress local_ip(200, 10, 2, 200);
         IPAddress gateway(200, 10, 2, 1);
@@ -669,10 +669,14 @@ int readTemp(const String &input)
     
     if (isAllDataCaptured)
     {
+        Serial.println(alarmParam.temp_max);
+        Serial.println(alarmParam.temp_min);
         for (int32_t temperature : temp)
         {
             if (temperature > alarmParam.temp_max || temperature < alarmParam.temp_min)
             {
+                Serial.println("ABNORMAL");
+                Serial.println(temperature);
                 isAllDataNormal = false;
                 break;
             }
@@ -2114,18 +2118,18 @@ void setup()
     WiFi.mode(WIFI_STA);
     
     #ifndef DEBUG
-        if (!WiFi.config(local_ip, gateway, subnet))
-        {
-            Serial.println("STA Failed to configure");
-        }
+        // if (!WiFi.config(local_ip, gateway, subnet))
+        // {
+        //     Serial.println("STA Failed to configure");
+        // }
     #endif
     
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-    // WiFi.begin(ssid, password);
-    WiFi.begin(ssid);
+    WiFi.begin(ssid, password);
+    // WiFi.begin(ssid);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
@@ -2702,9 +2706,10 @@ void loop()
         // Serial.println("is Update = " + String(isUpdate));
         if(isUpdate)
         {
-            bool isDataNormal = updater[addressList.at(i) - 1].isDataNormal();
+            int isDataNormal = updater[addressList.at(i) - 1].isDataNormal();
             isDataNormalList[addressList.at(i) - 1] = isDataNormal;
-
+            Serial.println("Bid : " + String(addressList.at(i) - 1));
+            Serial.println("Normal : "  + String(isDataNormal));
             Serial.println("Data is Complete.. Pushing to Database");
             msgCount[i]++;
             cellData[i].msgCount = msgCount[i];
@@ -2741,7 +2746,7 @@ void loop()
                 // Serial.println("Address List : " + String(addressList.size()));
                 // Serial.println("Address List Content :" + String(addressList.at(i)));
                 tempData = isDataNormalList[addressList.at(i)-1];
-                // Serial.println("temp data : " + String(tempData));
+                Serial.println("temp data " + String(i) + " : " + String(tempData));
                 if (tempData < 0)
                 {
                     break;
@@ -2756,6 +2761,7 @@ void loop()
                     else
                     {
                         buzzerState = 1;
+                        break;
                     }
                 }
                 // Serial.println("Data Normal : " + String(dataNormal));

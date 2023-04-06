@@ -85,7 +85,7 @@ void Updater::resetUpdateStatus()
 
 bool Updater::isDataNormal()
 {
-    return (_isVcellNormal & _isTempNormal);
+    return (_isVcellNormal && _isTempNormal);
 }
 
 int Updater::checkDataCompleted()
