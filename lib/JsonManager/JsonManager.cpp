@@ -123,43 +123,84 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data,
     return 1;
 }
 
-String JsonManager::buildJsonData(AsyncWebServerRequest *request, const CellData cellData[], const size_t numOfJsonObject) 
+String JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data, const size_t numOfJsonObject) 
 {
     String result;
     int bid = 0;
     DynamicJsonDocument doc(12288); //for 8 object
+    CellData *pointer;
+    doc["rack_sn"] = data.rackSn;
     JsonArray cms = doc.createNestedArray("cms_data");
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_0 = cms.createNestedObject();
-        cms_0["msg_count"] = cellData[i].msgCount;
-        cms_0["frame_name"] = cellData[i].frameName;
-        cms_0["cms_code"] = cellData[i].cmsCodeName;
-        cms_0["base_code"] = cellData[i].baseCodeName;
-        cms_0["mcu_code"] = cellData[i].mcuCodeName;
-        cms_0["site_location"] = cellData[i].siteLocation;
-        cms_0["bid"] = cellData[i].bid;
+        pointer = data.p + i;
+        cms_0["msg_count"] = pointer->msgCount;
+        cms_0["frame_name"] = pointer->frameName;
+        cms_0["cms_code"] = pointer->cmsCodeName;
+        cms_0["base_code"] = pointer->baseCodeName;
+        cms_0["mcu_code"] = pointer->mcuCodeName;
+        cms_0["site_location"] = pointer->siteLocation;
+        cms_0["bid"] = pointer->bid;
         JsonArray vcell = cms_0.createNestedArray("vcell");
         for ( int j = 0; j < 45; j++)
         {
-            vcell.add(cellData[i].vcell[j]);
+            vcell.add(pointer->vcell[j]);
         }
         JsonArray temp = cms_0.createNestedArray("temp");
         for (int j = 0; j < 9; j++)
         {
-            temp.add(cellData[i].temp[j]);
+            temp.add(pointer->temp[j]);
         }
         JsonArray vpack = cms_0.createNestedArray("pack");
         for (int k = 0; k < 3; k++)
         {
-            vpack.add(cellData[i].pack[k]);
+            vpack.add(pointer->pack[k]);
         }
-        cms_0["wake_status"] = cellData[i].status;
-        cms_0["door_status"] = cellData[i].door;
+        cms_0["wake_status"] = pointer->status;
+        cms_0["door_status"] = pointer->door;
     }
     serializeJson(doc, result);
     return result;
 }
+
+// String JsonManager::buildJsonData(AsyncWebServerRequest *request, const CellData cellData[], const size_t numOfJsonObject) 
+// {
+//     String result;
+//     int bid = 0;
+//     DynamicJsonDocument doc(12288); //for 8 object
+//     JsonArray cms = doc.createNestedArray("cms_data");
+//     for (size_t i = 0; i < numOfJsonObject; i++)
+//     {
+//         JsonObject cms_0 = cms.createNestedObject();
+//         cms_0["msg_count"] = cellData[i].msgCount;
+//         cms_0["frame_name"] = cellData[i].frameName;
+//         cms_0["cms_code"] = cellData[i].cmsCodeName;
+//         cms_0["base_code"] = cellData[i].baseCodeName;
+//         cms_0["mcu_code"] = cellData[i].mcuCodeName;
+//         cms_0["site_location"] = cellData[i].siteLocation;
+//         cms_0["bid"] = cellData[i].bid;
+//         JsonArray vcell = cms_0.createNestedArray("vcell");
+//         for ( int j = 0; j < 45; j++)
+//         {
+//             vcell.add(cellData[i].vcell[j]);
+//         }
+//         JsonArray temp = cms_0.createNestedArray("temp");
+//         for (int j = 0; j < 9; j++)
+//         {
+//             temp.add(cellData[i].temp[j]);
+//         }
+//         JsonArray vpack = cms_0.createNestedArray("pack");
+//         for (int k = 0; k < 3; k++)
+//         {
+//             vpack.add(cellData[i].pack[k]);
+//         }
+//         cms_0["wake_status"] = cellData[i].status;
+//         cms_0["door_status"] = cellData[i].door;
+//     }
+//     serializeJson(doc, result);
+//     return result;
+// }
 
 String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
 {

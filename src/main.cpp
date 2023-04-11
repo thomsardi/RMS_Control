@@ -253,11 +253,11 @@ void reInitCellData()
 {
     for (size_t i = 0; i < 8; i++)
     {
-        cellData[i].frameName = "N/A";
-        cellData[i].cmsCodeName = "N/A";
-        cellData[i].baseCodeName = "N/A";
-        cellData[i].mcuCodeName = "N/A";
-        cellData[i].siteLocation = "N/A";
+        cellData[i].frameName = "FRAME-32-NA";
+        cellData[i].cmsCodeName = "CMS-32-NA";
+        cellData[i].baseCodeName = "BASE-32-NA";
+        cellData[i].mcuCodeName = "MCU-32-NA";
+        cellData[i].siteLocation = "SITE-32-NA";
         cellData[i].bid = 0;
         for (size_t j = 0; j < 45; j++)
         {
@@ -283,11 +283,11 @@ void declareStruct()
     data.size = cellDataSize;
     for (size_t i = 0; i < cellDataSize; i++)
     {
-        cellData[i].frameName = "N/A";
-        cellData[i].cmsCodeName = "N/A";
-        cellData[i].baseCodeName = "N/A";
-        cellData[i].mcuCodeName = "N/A";
-        cellData[i].siteLocation = "N/A";
+        cellData[i].frameName = "FRAME-32-NA";
+        cellData[i].cmsCodeName = "CMS-32-NA";
+        cellData[i].baseCodeName = "BASE-32-NA";
+        cellData[i].mcuCodeName = "MCU-32-NA";
+        cellData[i].siteLocation = "SITE-32-NA";
         // cellData[i].bid = 0;
         // for (size_t j = 0; j < 45; j++)
         // {
@@ -314,12 +314,12 @@ void declareStruct()
     for (size_t i = 0; i < 8; i++)
     {
         cmsInfo[i].bid = 0;
-        cmsInfo[i].cmsCodeName = "N/A";
-        cmsInfo[i].baseCodeName = "N/A";
-        cmsInfo[i].mcuCodeName = "N/A";
-        cmsInfo[i].siteLocation = "N/A";
-        cmsInfo[i].ver = "N/A";
-        cmsInfo[i].chip = "N/A";
+        cmsInfo[i].cmsCodeName = "CMS-32-NA";
+        cmsInfo[i].baseCodeName = "BASE-32-NA";
+        cmsInfo[i].mcuCodeName = "MCU-32-NA";
+        cmsInfo[i].siteLocation = "SITE-32-NA";
+        cmsInfo[i].ver = "VER-32-NA";
+        cmsInfo[i].chip = "CHIP-32-NA";
     }
 
     for (size_t i = 0; i < 8; i++)
@@ -2011,6 +2011,7 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.println(ssid);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    rmsInfo.ip = WiFi.localIP().toString();
     Serial.print("Subnet Mask: ");
     Serial.println(WiFi.subnetMask());
     Serial.print("Gateway IP: ");
@@ -2222,7 +2223,9 @@ void setup()
     server.on("/get-cms-data", HTTP_GET, [](AsyncWebServerRequest *request)
     {
         size_t cellDataArrSize = sizeof(cellData) / sizeof(cellData[0]);
-        String jsonOutput = jsonManager.buildJsonData(request, cellData, cellDataArrSize);
+        // String jsonOutput = jsonManager.buildJsonData(request, cellData, cellDataArrSize);
+        data.rackSn = rackSn;
+        String jsonOutput = jsonManager.buildJsonData(request, data, cellDataArrSize);
         request->send(200, "application/json", jsonOutput); });
 
     server.on("/get-data", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -2241,6 +2244,7 @@ void setup()
 
     server.on("/get-device-general-info", HTTP_GET, [](AsyncWebServerRequest *request)
     {
+        // rmsInfo.ip = WiFi.localIP().toString();
         String jsonOutput = jsonManager.buildJsonRMSInfo(rmsInfo);
         request->send(200, "application/json", jsonOutput); });
 
@@ -2746,7 +2750,7 @@ void loop()
                 // Serial.println("Address List : " + String(addressList.size()));
                 // Serial.println("Address List Content :" + String(addressList.at(i)));
                 tempData = isDataNormalList[addressList.at(i)-1];
-                Serial.println("temp data " + String(i) + " : " + String(tempData));
+                // Serial.println("temp data " + String(i) + " : " + String(tempData));
                 if (tempData < 0)
                 {
                     break;
