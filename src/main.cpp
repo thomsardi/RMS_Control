@@ -115,9 +115,9 @@ hw_timer_t *myTimer = NULL;
     const char *ssid = "Redmi";
     const char *password = "thomasredmi15";
 #else
-    const char *ssid = "RnD_Sundaya";
-    // const char *ssid = "Laminate";
-    const char *password = "sundaya22";
+    // const char *ssid = "RnD_Sundaya";
+    const char *ssid = "Laminate";
+    // const char *password = "sundaya22";
 #endif
 
 const char *host = DATABASE_IP;
@@ -128,8 +128,8 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        // IPAddress local_ip(200, 10, 2, 211);
-        // IPAddress gateway(200, 10, 2, 1);
+        IPAddress local_ip(200, 10, 2, 213);
+        IPAddress gateway(200, 10, 2, 1);
     #else
         IPAddress local_ip(200, 10, 2, 200);
         IPAddress gateway(200, 10, 2, 1);
@@ -2119,18 +2119,18 @@ void setup()
     WiFi.mode(WIFI_STA);
     
     #ifndef DEBUG
-        // if (!WiFi.config(local_ip, gateway, subnet))
-        // {
-        //     Serial.println("STA Failed to configure");
-        // }
+        if (!WiFi.config(local_ip, gateway, subnet))
+        {
+            Serial.println("STA Failed to configure");
+        }
     #endif
     
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-    WiFi.begin(ssid, password);
-    // WiFi.begin(ssid);
+    // WiFi.begin(ssid, password);
+    WiFi.begin(ssid);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
