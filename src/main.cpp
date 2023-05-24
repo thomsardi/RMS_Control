@@ -128,7 +128,7 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        IPAddress local_ip(200, 10, 2, 213);
+        IPAddress local_ip(200, 10, 2, 212);
         IPAddress gateway(200, 10, 2, 1);
     #else
         IPAddress local_ip(200, 10, 2, 200);
