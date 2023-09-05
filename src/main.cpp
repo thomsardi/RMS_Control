@@ -13,6 +13,8 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <Vector.h>
+#include <ArduinoOTA.h>
+#include <ESP32httpUpdate.h>
 // #include <AsyncElegantOTA.h>
 #include <HTTPClient.h>
 #include <JsonManager.h>
@@ -25,6 +27,7 @@
 #include <LedAnimation.h>
 #include <EEPROM.h>
 #include <OneButton.h>
+#include <ModbusServerTCPasync.h>
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -54,7 +57,7 @@
 
 #define HARDWARE_ALARM 1
 
-// #define DEBUG 1
+#define DEBUG 1
 
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
@@ -86,6 +89,8 @@ int reset = 0;
 int alert = 0;
 int relay[] = {22, 23};
 int buzzer = 26;
+int relayOn = 26;
+int relayOff = 26;
 // create a global shift register object
 // parameters: <number of shift registers> (data pin, clock pin, latch pin)
 
@@ -112,8 +117,10 @@ CRGB leds[NUM_LEDS];
 hw_timer_t *myTimer = NULL;
 
 #ifdef DEBUG
-    const char *ssid = "Redmi";
-    const char *password = "thomasredmi15";
+    // const char *ssid = "Redmi";
+    // const char *password = "thomasredmi15";
+    const char *ssid = "RnD_Sundaya";
+    const char *password = "sundaya22";
 #else
     // const char *ssid = "RnD_Sundaya";
     const char *ssid = "Laminate";
@@ -142,7 +149,9 @@ const char *host = DATABASE_IP;
 
 // Set your Gateway IP address
 
+IPAddress modbusServer(192, 168, 2, 144);
 IPAddress subnet(255, 255, 255, 0);
+uint16_t port = 502;
 // IPAddress primaryDNS(192, 168, 2, 1);        // optional
 // IPAddress secondaryDNS(119, 18, 156, 10);       // optional
 String hostName = HOST_NAME;
@@ -153,6 +162,9 @@ RMSManager rmsManager;
 LedAnimation ledAnimation(8,8, true);
 Updater updater[8];
 OneButton startButton(32, true, true);
+
+ModbusServerTCPasync MBserver;
+uint16_t memo[32]; 
 
 Data data;
 CellData cellData[8];
@@ -181,6 +193,7 @@ CMSWakeup cmsWakeup;
 LedCommand ledCommand;
 CMSRestartCommand cmsRestartCommand;
 RMSRestartCommand rmsRestartCommand;
+OtaParameter otaParameter;
 
 enum CommandType {
     VCELL = 0,
@@ -2006,6 +2019,51 @@ void addressing(bool isFromBottom)
     digitalWrite(internalLed,HIGH);
 }
 
+void handleSketchDownload(const OtaParameter &otaParameter) {
+    const char* SERVER = "www.my-hostname.it";  // Set your correct hostname
+    const unsigned short SERVER_PORT = 443;     // Commonly 80 (HTTP) | 443 (HTTPS)
+    const char* PATH = "/update-v%d.bin";       // Set the URI to the .bin firmware
+
+    String url = otaParameter.server + otaParameter.path;
+
+    WiFiClient wifiClient;
+    //   HTTPClient client(wifiClient, SERVER, SERVER_PORT);  // HTTP
+    // ESPhttpUpdate.update(wifiClient, otaParameter.port, url, "1");
+}
+
+// Server function to handle FC 0x03 and 0x04
+ModbusMessage FC03(ModbusMessage request) {
+  ModbusMessage response;      // The Modbus message we are going to give back
+  uint16_t addr = 0;           // Start address
+  uint16_t words = 0;          // # of words requested
+  request.get(2, addr);        // read address from request
+  request.get(4, words);       // read # of words from request
+
+  // Address overflow?
+  if ((addr + words) > 20) {
+    // Yes - send respective error response
+    response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
+  }
+  // Set up response
+  response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)(words * 2));
+  // Request for FC 0x03?
+  if (request.getFunctionCode() == READ_HOLD_REGISTER) {
+    // Yes. Complete response
+    for (uint8_t i = 0; i < words; ++i) {
+      // send increasing data values
+      response.add((uint16_t)(addr + i));
+    }
+  } else {
+    // No, this is for FC 0x04. Response is random
+    for (uint8_t i = 0; i < words; ++i) {
+      // send increasing data values
+      response.add((uint16_t)random(1, 65535));
+    }
+  }
+  // Send response back
+  return response;
+}
+
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.print("Connected to ");
     Serial.println(ssid);
@@ -2038,8 +2096,12 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.print("WiFi lost connection. Reason: ");
     Serial.println(info.wifi_sta_disconnected.reason);
     Serial.println("Trying to Reconnect");
-    // WiFi.begin(ssid, password);
-    WiFi.begin(ssid);
+    #ifndef DEBUG
+        // WiFi.begin(ssid);
+    #else
+        WiFi.begin(ssid, password);
+    #endif
+    
 }
 
 void resetUpdater()
@@ -2129,8 +2191,12 @@ void setup()
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-    // WiFi.begin(ssid, password);
-    WiFi.begin(ssid);
+    #ifndef DEBUG
+        WiFi.begin(ssid);
+    #else
+        WiFi.begin(ssid, password);
+    #endif
+    // WiFi.begin(ssid);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
     // delay(500);
@@ -2558,6 +2624,18 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
+    AsyncCallbackJsonWebHandler *setOtaUpdate = new AsyncCallbackJsonWebHandler("/ota-update", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        String input = json.as<String>();
+        int status = jsonManager.jsonOtaUpdate(input.c_str(), otaParameter);
+        response.replace(":status:", String(status));
+        request->send(200, "application/json", response); });
+
     server.addHandler(setBalancingHandler);
     server.addHandler(setAddressHandler);
     server.addHandler(setAlarmHandler);
@@ -2576,7 +2654,19 @@ void setup()
     server.addHandler(setLedHandler);
     server.addHandler(restartCMSHandler);
     server.addHandler(restartRMSHandler);
+    server.addHandler(setOtaUpdate);
     // server.addHandler(restartCMSViaPinHandler);
+
+    // Set up test memory
+    for (uint16_t i = 0; i < 32; ++i) {
+        memo[i] = (i * 2) << 8 | ((i * 2) + 1);
+    }
+
+    // Define and start RTU server
+    MBserver.registerWorker(1, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=1
+    MBserver.registerWorker(1, READ_INPUT_REGISTER, &FC03);     // FC=04 for serverID=1
+    MBserver.registerWorker(2, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=2
+    MBserver.start(502, 1, 20000);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();

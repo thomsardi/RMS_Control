@@ -192,6 +192,14 @@ struct CMSWakeup
     int wakeup = 0;
 };
 
+struct OtaParameter
+{
+    bool isOtaUpdate = 0;
+    String server = "";
+    int port = 80;
+    String path = "";
+};
+
 struct AddressingStatus
 {
     int numOfDevice = 0;

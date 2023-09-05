@@ -990,6 +990,42 @@ int JsonManager::jsonRMSRestartParser(const char* jsonInput)
     return command;
 }
 
+int JsonManager::jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter)
+{
+    StaticJsonDocument<192> doc;
+    DeserializationError error = deserializeJson(doc, jsonInput);
+
+    if (error) {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return -1;
+    }
+
+    if (!doc.containsKey("ota_update")) 
+    {
+        return -1;
+    }
+
+    if (!doc.containsKey("server")) 
+    {
+        return -1;
+    }
+    if (!doc.containsKey("port")) 
+    {
+        return -1;
+    }
+    if (!doc.containsKey("path")) 
+    {
+        return -1;
+    }
+
+    otaParameter.isOtaUpdate = doc["ota_update"];
+    otaParameter.server = doc["server"].as<String>();
+    otaParameter.port = doc["port"];
+    otaParameter.path = doc["path"].as<String>();
+    return 1;
+}
+
 int JsonManager::getBit(int pos, int data)
 {
   if (pos > 7 & pos < 0)

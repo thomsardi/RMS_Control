@@ -56,6 +56,7 @@ class JsonManager {
         int jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &cmsRestartCommand);
         int jsonCMSRestartPinParser(const char* jsonInput);
         int jsonRMSRestartParser(const char* jsonInput);
+        int jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter);
         
 
         private :
