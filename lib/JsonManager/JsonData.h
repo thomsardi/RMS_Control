@@ -1,3 +1,6 @@
+#ifndef JSONDATA_H
+#define JSONDATA_H
+
 #include <Arduino.h>
 
 struct CellData
@@ -206,3 +209,5 @@ struct AddressingStatus
     int deviceAddressList[8] = {0};
     int status = 0;
 };
+
+#endif

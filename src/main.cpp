@@ -28,6 +28,7 @@
 #include <EEPROM.h>
 #include <OneButton.h>
 #include <ModbusServerTCPasync.h>
+#include <ModbusRegisterHandler.h>
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -2033,35 +2034,30 @@ void handleSketchDownload(const OtaParameter &otaParameter) {
 
 // Server function to handle FC 0x03 and 0x04
 ModbusMessage FC03(ModbusMessage request) {
-  ModbusMessage response;      // The Modbus message we are going to give back
-  uint16_t addr = 0;           // Start address
-  uint16_t words = 0;          // # of words requested
-  request.get(2, addr);        // read address from request
-  request.get(4, words);       // read # of words from request
+    ModbusMessage response;      // The Modbus message we are going to give back
+    uint16_t addr = 0;           // Start address
+    uint16_t words = 0;          // # of words requested
+    request.get(2, addr);        // read address from request
+    request.get(4, words);       // read # of words from request
 
-  // Address overflow?
-  if ((addr + words) > 20) {
-    // Yes - send respective error response
-    response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
-  }
-  // Set up response
-  response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)(words * 2));
-  // Request for FC 0x03?
-  if (request.getFunctionCode() == READ_HOLD_REGISTER) {
-    // Yes. Complete response
-    for (uint8_t i = 0; i < words; ++i) {
-      // send increasing data values
-      response.add((uint16_t)(addr + i));
-    }
-  } else {
-    // No, this is for FC 0x04. Response is random
-    for (uint8_t i = 0; i < words; ++i) {
-      // send increasing data values
-      response.add((uint16_t)random(1, 65535));
-    }
-  }
-  // Send response back
-  return response;
+    ModbusRegisterHandler mrh(cellData, 8);
+    return mrh.handleRequest(request);
+    // Send response back
+    // return response;
+}
+
+ModbusMessage FC04(ModbusMessage request) {
+    ModbusMessage response;      // The Modbus message we are going to give back
+    uint16_t addr = 0;           // Start address
+    uint16_t words = 0;          // # of words requested
+    request.get(2, addr);        // read address from request
+    request.get(4, words);       // read # of words from request
+
+    ModbusRegisterHandler mrh(cellData, 8);
+    return mrh.handleRequest(request);
+    
+    // Send response back
+    // return response;
 }
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
@@ -2664,7 +2660,7 @@ void setup()
 
     // Define and start RTU server
     MBserver.registerWorker(1, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=1
-    MBserver.registerWorker(1, READ_INPUT_REGISTER, &FC03);     // FC=04 for serverID=1
+    MBserver.registerWorker(1, READ_INPUT_REGISTER, &FC04);     // FC=04 for serverID=1
     MBserver.registerWorker(2, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=2
     MBserver.start(502, 1, 20000);
 
