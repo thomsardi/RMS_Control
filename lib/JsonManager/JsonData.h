@@ -16,8 +16,24 @@ struct CellData
     int vcell[45] = {0};
     int32_t temp[9] = {0};
     int32_t pack[3] = {0};
-    int status = 0;
-    int door = 0;
+
+    union PackStatus {
+        struct Bits {
+            uint16_t cellDiffAlarm : 1;
+            uint16_t cellOvervoltage : 1;
+            uint16_t cellUndervoltage : 1;
+            uint16_t overtemperature : 1;
+            uint16_t undertemperature : 1;
+            uint16_t : 3;
+            uint16_t status : 1;
+            uint16_t door : 1;
+            uint16_t : 6;
+        } bits;
+        uint16_t val;
+    } packStatus;
+
+    // int status = 0;
+    // int door = 0;
 };
 
 struct Data {
@@ -51,8 +67,11 @@ struct CMSInfo
 
 struct AlarmParam
 {
-    int vcell_max = 0;
-    int vcell_min = 0;
+    uint16_t vcell_diff = 0;
+    uint16_t vcell_diff_reconnect = 0;
+    uint16_t vcell_max = 0;
+    uint16_t vcell_min = 0;
+    uint16_t vcell_reconnect = 0;
     int32_t temp_max = 0;
     int32_t temp_min = 0;
 };

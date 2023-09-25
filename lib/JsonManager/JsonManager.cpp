@@ -59,8 +59,8 @@ String JsonManager::buildSingleJsonData(const CellData &cellData)
     {
         vpack.add(cellData.pack[k]);
     }
-    doc["wake_status"] = cellData.status;
-    doc["door_status"] = cellData.door;
+    doc["wake_status"] = cellData.packStatus.bits.status;
+    doc["door_status"] = cellData.packStatus.bits.door;
     serializeJson(doc, result);
     return result;
 }
@@ -115,8 +115,8 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data,
             {
                 vpack.add(pointer->pack[k]);
             }
-            cms_0["wake_status"] = pointer->status;
-            cms_0["door_status"] = pointer->door;
+            cms_0["wake_status"] = pointer->packStatus.bits.status;
+            cms_0["door_status"] = pointer->packStatus.bits.door;
         }
     }
     serializeJson(doc, buffer);
@@ -157,8 +157,8 @@ String JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &da
         {
             vpack.add(pointer->pack[k]);
         }
-        cms_0["wake_status"] = pointer->status;
-        cms_0["door_status"] = pointer->door;
+        cms_0["wake_status"] = pointer->packStatus.bits.status;
+        cms_0["door_status"] = pointer->packStatus.bits.door;
     }
     serializeJson(doc, result);
     return result;
@@ -476,7 +476,7 @@ int JsonManager::jsonLedParser(const char* jsonInput, LedCommand &ledCommand)
 
 int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam)
 {
-    StaticJsonDocument<128> doc;
+    StaticJsonDocument<256> doc;
 
     DeserializationError error = deserializeJson(doc, jsonInput);
 
@@ -489,8 +489,11 @@ int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& ala
     {
         return -1;
     }
-    alarmParam.vcell_max = doc["vcell_max"].as<signed int>();
-    alarmParam.vcell_min = doc["vcell_min"].as<signed int>();
+    alarmParam.vcell_diff = doc["vcell_diff"];
+    alarmParam.vcell_diff_reconnect = doc["vcell_diff_reconnect"];
+    alarmParam.vcell_max = doc["vcell_max"];
+    alarmParam.vcell_min = doc["vcell_min"];
+    alarmParam.vcell_reconnect = doc["vcell_reconnect"];
     alarmParam.temp_max = doc["temp_max"].as<signed int>();
     alarmParam.temp_min = doc["temp_min"].as<signed int>();
     return 1;

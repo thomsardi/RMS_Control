@@ -29,6 +29,7 @@
 #include <OneButton.h>
 #include <ModbusServerTCPasync.h>
 #include <ModbusRegisterHandler.h>
+#include <Preferences.h>
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -52,13 +53,15 @@
 
 // #define AUTO_POST 1 //comment to disable server auto post
 
-#define LAMINATE_ROOM 1 //uncomment to use board in laminate room
+// #define LAMINATE_ROOM 1 //uncomment to use board in laminate room
 
 #define CYCLING 1
 
 #define HARDWARE_ALARM 1
 
 #define DEBUG 1
+
+// #define DEBUG_STATIC 1
 
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
@@ -88,10 +91,11 @@ int state = 0;
 int emergency;
 int reset = 0;
 int alert = 0;
-int relay[] = {22, 23};
+// int relay[] = {22, 23};
+int battRelay = 23;
 int buzzer = 26;
-int relayOn = 26;
-int relayOff = 26;
+// int relayOn = 26;
+// int relayOff = 26;
 // create a global shift register object
 // parameters: <number of shift registers> (data pin, clock pin, latch pin)
 
@@ -121,7 +125,10 @@ hw_timer_t *myTimer = NULL;
     // const char *ssid = "Redmi";
     // const char *password = "thomasredmi15";
     const char *ssid = "RnD_Sundaya";
+    // const char *ssid = "Zali cerita cerita";
     const char *password = "sundaya22";
+    // const char *ssid = "Sundaya";
+    // const char *password = "sundaya21";
 #else
     // const char *ssid = "RnD_Sundaya";
     const char *ssid = "Laminate";
@@ -144,7 +151,7 @@ const char *host = DATABASE_IP;
     #endif
 #else
     // Set your Static IP address
-    IPAddress local_ip(192, 168, 2, 222);
+    IPAddress local_ip(192, 168, 2, 201);
     IPAddress gateway(192, 168, 2, 1);
 #endif
 
@@ -195,6 +202,11 @@ LedCommand ledCommand;
 CMSRestartCommand cmsRestartCommand;
 RMSRestartCommand rmsRestartCommand;
 OtaParameter otaParameter;
+SettingRegisters settingRegisters;
+OtherInfo otherInfo;
+SystemStatus systemStatus;
+MbusCoilData mbusCoilData;
+ModbusRegisterData modbusRegisterData;
 
 enum CommandType {
     VCELL = 0,
@@ -244,6 +256,8 @@ bool isCmsRestartPin = false;
 bool cycle = false;
 bool isFromSequence = false;
 bool addressingByButton = false;
+bool manualOverride = false;
+bool factoryReset = false;
 
 int isAddressingCompleted = 0;
 int commandSequence = 0;
@@ -285,8 +299,8 @@ void reInitCellData()
         {
             cellData[i].pack[j] = -1;
         }
-        cellData[i].status = 0;
-        cellData[i].door = 0;
+        cellData[i].packStatus.bits.status = 0;
+        cellData[i].packStatus.bits.door = 0;
     }
 }
 
@@ -346,10 +360,13 @@ void declareStruct()
         // }
     }
 
-    alarmParam.temp_max = 80000;
-    alarmParam.temp_min = 20000;
+    alarmParam.vcell_diff = 300;
+    alarmParam.vcell_diff_reconnect = 250;
     alarmParam.vcell_max = 3700;
     alarmParam.vcell_min = 3000;
+    alarmParam.vcell_reconnect = 3200;
+    alarmParam.temp_max = 80000;
+    alarmParam.temp_min = 20000;
 
     // for (size_t i = 0; i < 45; i++)
     // {
@@ -478,6 +495,10 @@ int readVcell(const String &input)
     int startIndex; // bid start from 1, array index start from 0
     bool isAllDataCaptured = false;
     bool isAllDataNormal = true;
+    bool flag = true;
+    bool undervoltageFlag = false;
+    bool overvoltageFlag = false;
+    bool diffVoltageFlag = false;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);    
@@ -531,25 +552,96 @@ int readVcell(const String &input)
 
     if (isAllDataCaptured)
     {
+        int maxVcell = cell[0];
+        int minVcell = cell[0];
         for (int c : cell)
         {
             if (c <= 200) //ignore the unconnected cell
             {
                 isAllDataNormal = true;
             }
-            else if (c >= alarmParam.vcell_min && c <= alarmParam.vcell_max) 
+            else  
             {
-                isAllDataNormal = true;
+                if (maxVcell < c) 
+                {
+                    maxVcell = c;
+                }
+                
+                if (minVcell > c) {
+                    minVcell = c;
+                }
+
+                int diff = maxVcell - minVcell;
+
+                Serial.println("Max Vcell : " + String(maxVcell));
+                Serial.println("Min Vcell : " + String(minVcell));
+                Serial.println("Diff : " + String(diff));
+
+                if (c >= alarmParam.vcell_min && c <= alarmParam.vcell_max) 
+                {    
+                    if (cellData[startIndex].packStatus.bits.cellUndervoltage)
+                    {
+                        if (c < alarmParam.vcell_reconnect)
+                        {
+                            isAllDataNormal = false;
+                            flag = false;
+                            undervoltageFlag = true;
+                        }
+                    }
+                }
+                else
+                {
+                    // Serial.println("Vcell min = " + String(alarmParam.vcell_min));
+                    // Serial.println("Vcell max = " + String(alarmParam.vcell_max));
+                    if (c < alarmParam.vcell_min) 
+                    {
+                        cellData[startIndex].packStatus.bits.cellUndervoltage = 1;
+                        isAllDataNormal = false;
+                        flag = false;    
+                        undervoltageFlag = true;
+                    }
+                    
+                    if (c > alarmParam.vcell_max)
+                    {
+                        cellData[startIndex].packStatus.bits.cellOvervoltage = 1;
+                        overvoltageFlag = true;
+                    }
+                    // Serial.println("Abnormal Cell Voltage = " + String(c));
+                    // break;
+                }
+
+                if (cellData[startIndex].packStatus.bits.cellDiffAlarm) 
+                {
+                    if (diff > alarmParam.vcell_diff_reconnect) 
+                    {
+                        isAllDataNormal = false;
+                        flag = false;
+                        diffVoltageFlag = true;
+                        // break;
+                    }
+                }
+                else
+                {
+                    if (diff > alarmParam.vcell_diff) 
+                    {
+                        cellData[startIndex].packStatus.bits.cellDiffAlarm = 1;
+                        isAllDataNormal = false;
+                        flag = false;
+                        diffVoltageFlag = true;
+                        // break;
+                    }
+                }
+                
             }
-            else
-            {
-                // Serial.println("Vcell min = " + String(alarmParam.vcell_min));
-                // Serial.println("Vcell max = " + String(alarmParam.vcell_max));
-                isAllDataNormal = false;
-                // Serial.println("Abnormal Cell Voltage = " + String(c));
-                break;
-            }
+
         }
+
+        cellData[startIndex].packStatus.bits.cellDiffAlarm = diffVoltageFlag;
+        cellData[startIndex].packStatus.bits.cellUndervoltage = undervoltageFlag;
+        cellData[startIndex].packStatus.bits.cellOvervoltage = overvoltageFlag;
+
+
+        isAllDataNormal = isAllDataNormal & flag;
 
         if (!isAllDataNormal)
         {
@@ -630,6 +722,9 @@ int readTemp(const String &input)
     int status = -1;
     bool isAllDataCaptured = false;
     bool isAllDataNormal = true;
+    bool flag = true;
+    bool undertemperatureFlag = false;
+    bool overtemperatureFlag = false;
     bool isValidJsonFormat = true;
     DynamicJsonDocument docBattery(1024);
     DeserializationError error = deserializeJson(docBattery, input);
@@ -685,14 +780,39 @@ int readTemp(const String &input)
     {
         Serial.println(alarmParam.temp_max);
         Serial.println(alarmParam.temp_min);
+        int maxTemp = temp[0];
+        int minTemp = temp[0];
         for (int32_t temperature : temp)
         {
+            if (maxTemp < temperature)
+            {
+                maxTemp = temperature;
+            }
+
+            if (minTemp > temperature)
+            {
+                minTemp = temperature;
+            }
+            
+            if (maxTemp > alarmParam.temp_max)
+            {
+                cellData[startIndex].packStatus.bits.overtemperature = 1;
+                overtemperatureFlag = true;
+            }
+
+            if (minTemp < alarmParam.temp_min)
+            {
+                cellData[startIndex].packStatus.bits.undertemperature = 1;
+                undertemperatureFlag = true;
+            }
+
             if (temperature > alarmParam.temp_max || temperature < alarmParam.temp_min)
             {
                 Serial.println("ABNORMAL");
                 Serial.println(temperature);
                 isAllDataNormal = false;
-                break;
+                flag = false;
+                // break;
             }
             else
             {
@@ -700,6 +820,10 @@ int readTemp(const String &input)
             }
         }
 
+        cellData[startIndex].packStatus.bits.undertemperature = undertemperatureFlag;
+        cellData[startIndex].packStatus.bits.overtemperature = overtemperatureFlag;
+
+        isAllDataNormal = isAllDataNormal & flag;
         if (isAllDataNormal)
         {
             Serial.println("Data Temperature Normal");
@@ -1383,8 +1507,8 @@ int readCMSBQStatusResponse(const String &input)
     status = doc["WAKE_STATUS"];
     door = doc["DOOR_STATUS"];
     // Serial.println("WAKE STATUS = " + String(status));
-    cellData[startIndex].status = status;
-    cellData[startIndex].door = door;
+    cellData[startIndex].packStatus.bits.status = status;
+    cellData[startIndex].packStatus.bits.door = door;
     Serial.println("Status Read Success");
     updater[startIndex].updateStatus();
     #ifdef AUTO_POST
@@ -2032,6 +2156,16 @@ void handleSketchDownload(const OtaParameter &otaParameter) {
     // ESPhttpUpdate.update(wifiClient, otaParameter.port, url, "1");
 }
 
+// Server function to handle FC 0x01
+ModbusMessage FC01(ModbusMessage request) {
+    ModbusMessage response;      // The Modbus message we are going to give back
+
+    ModbusRegisterHandler mrh(modbusRegisterData);
+    return mrh.handleReadCoils(request);
+    // Send response back
+    // return response;
+}
+
 // Server function to handle FC 0x03 and 0x04
 ModbusMessage FC03(ModbusMessage request) {
     ModbusMessage response;      // The Modbus message we are going to give back
@@ -2040,8 +2174,8 @@ ModbusMessage FC03(ModbusMessage request) {
     request.get(2, addr);        // read address from request
     request.get(4, words);       // read # of words from request
 
-    ModbusRegisterHandler mrh(cellData, 8);
-    return mrh.handleRequest(request);
+    ModbusRegisterHandler mrh(modbusRegisterData);
+    return mrh.handleReadHoldingRegisters(request);
     // Send response back
     // return response;
 }
@@ -2053,8 +2187,48 @@ ModbusMessage FC04(ModbusMessage request) {
     request.get(2, addr);        // read address from request
     request.get(4, words);       // read # of words from request
 
-    ModbusRegisterHandler mrh(cellData, 8);
-    return mrh.handleRequest(request);
+    otherInfo.data[0] = addressList.size();
+    otherInfo.data[1] = systemStatus.val;
+    ModbusRegisterHandler mrh(modbusRegisterData);
+    return mrh.handleReadInputRegisters(request);
+    
+    // Send response back
+    // return response;
+}
+
+ModbusMessage FC05(ModbusMessage request) {
+    ModbusMessage response;      // The Modbus message we are going to give back
+    
+    ModbusRegisterHandler mrh(modbusRegisterData);
+    return mrh.handleWriteCoil(request);
+    
+    // Send response back
+    // return response;
+}
+
+ModbusMessage FC06(ModbusMessage request) {
+    ModbusMessage response;      // The Modbus message we are going to give back
+    uint16_t addr = 0;           // Start address
+    uint16_t words = 0;          // # of words requested
+    request.get(2, addr);        // read address from request
+    request.get(4, words);       // read # of words from request
+    
+    ModbusRegisterHandler mrh(modbusRegisterData);
+    return mrh.handleWriteRegister(request);
+    
+    // Send response back
+    // return response;
+}
+
+ModbusMessage FC16(ModbusMessage request) {
+    ModbusMessage response;      // The Modbus message we are going to give back
+    uint16_t addr = 0;           // Start address
+    uint16_t words = 0;          // # of words requested
+    request.get(2, addr);        // read address from request
+    request.get(4, words);       // read # of words from request
+    
+    ModbusRegisterHandler mrh(modbusRegisterData);
+    return mrh.handleWriteMultipleRegisters(request);
     
     // Send response back
     // return response;
@@ -2144,6 +2318,41 @@ void IRAM_ATTR onTimer()
 
 void setup()
 {
+    settingRegisters.link(&alarmParam.vcell_diff, 0);
+    settingRegisters.link(&alarmParam.vcell_diff_reconnect, 1);
+    settingRegisters.link(&alarmParam.vcell_max, 2);
+    settingRegisters.link(&alarmParam.vcell_min, 3);
+    settingRegisters.link(&alarmParam.vcell_reconnect, 4);
+    uint16_t *ptr = reinterpret_cast<uint16_t*>(&alarmParam.temp_max);
+    settingRegisters.link(ptr+1, 5);
+    settingRegisters.link(ptr, 6);
+    ptr = reinterpret_cast<uint16_t*>(&alarmParam.temp_min);
+    settingRegisters.link(ptr+1, 7);
+    settingRegisters.link(ptr, 8);
+
+    bool *boolPtr = reinterpret_cast<bool*>(&addressingCommand.exec);
+    mbusCoilData.link(boolPtr, 0);
+    boolPtr = reinterpret_cast<bool*>(&dataCollectionCommand.exec);
+    mbusCoilData.link(boolPtr, 1);
+    boolPtr = reinterpret_cast<bool*>(&cmsRestartCommand.restart);
+    mbusCoilData.link(boolPtr, 2);
+    boolPtr = reinterpret_cast<bool*>(&rmsRestartCommand.restart);
+    mbusCoilData.link(boolPtr, 3);
+    boolPtr = reinterpret_cast<bool*>(&manualOverride);
+    mbusCoilData.link(boolPtr, 4);
+    boolPtr = reinterpret_cast<bool*>(&alarmCommand.buzzer);
+    mbusCoilData.link(boolPtr, 5);
+    boolPtr = reinterpret_cast<bool*>(&alarmCommand.battRelay);
+    mbusCoilData.link(boolPtr, 6);
+    boolPtr = reinterpret_cast<bool*>(&factoryReset);
+    mbusCoilData.link(boolPtr, 7);
+
+    modbusRegisterData.inputRegister.cellData = cellData;
+    modbusRegisterData.inputRegister.cellDataSize = cellDataSize;
+    modbusRegisterData.inputRegister.otherInfo = &otherInfo;
+    modbusRegisterData.holdingRegisters.settingRegisters = &settingRegisters;
+    modbusRegisterData.mbusCoil.mbusCoilData = &mbusCoilData;
+
     startButton.attachClick(buttonClicked);
     startButton.attachLongPressStart(buttonLongPressed);
     // startButton.attachDoubleClick(buttonDoubleClicked);
@@ -2161,11 +2370,41 @@ void setup()
     myTimer = timerBegin(0, 80, true);
     timerAttachInterrupt(myTimer, &onTimer, true);
     timerAlarmWrite(myTimer, 500000, true);
-    pinMode(relay[0], OUTPUT);
-    pinMode(relay[1], OUTPUT);
+    pinMode(battRelay, OUTPUT);
     pinMode(buzzer, OUTPUT);
     pinMode(internalLed, OUTPUT);
     Serial.begin(115200);
+
+    for (size_t i = 0; i < 9; i++)
+    {
+        Serial.println(settingRegisters.get(i));
+    }
+    // uint16_t val = settingRegisters.get(0);
+    // Serial.println(t.get(0));
+    // Serial.println(val);
+    
+    
+    // Serial.println("Temp Max");
+    // Serial.println(settingRegisters.get(5));
+    // Serial.println(settingRegisters.get(6));
+    // Serial.println("Temp Min");
+    // Serial.println(settingRegisters.get(7));
+    // Serial.println(settingRegisters.get(8));
+    
+
+    // Serial.println("Temp Min");
+    // Serial.println(*(ptr2));
+    // Serial.println(*(ptr2+1));
+    // settingRegisters.temp_max_hi = 100000 >> 16;
+    // settingRegisters.temp_max_lo = 100000 & 0xFFFF;
+    // Serial.print(settingRegisters[5], HEX);
+    // Serial.println(settingRegisters[6], HEX);
+    // otherInfo.connectedBattery = 2;
+    // otherInfo.systemStatus = 32;
+
+    // Serial.println(otherInfo[0]);
+    // Serial.println(otherInfo[1]);
+
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
@@ -2177,6 +2416,13 @@ void setup()
     WiFi.mode(WIFI_STA);
     
     #ifndef DEBUG
+        if (!WiFi.config(local_ip, gateway, subnet))
+        {
+            Serial.println("STA Failed to configure");
+        }
+    #endif
+
+    #ifdef DEBUG_STATIC
         if (!WiFi.config(local_ip, gateway, subnet))
         {
             Serial.println("STA Failed to configure");
@@ -2254,8 +2500,8 @@ void setup()
     }
     timerAlarmEnable(myTimer);
     delay(100); //wait a bit to stabilize the voltage and current consumption
-    digitalWrite(relay[0], HIGH);
-    digitalWrite(relay[1], HIGH);
+    digitalWrite(battRelay, HIGH);
+    // digitalWrite(relay[1], HIGH);
     // setShiftRegisterState();
     #ifdef HARDWARE_ALARM
         hardwareAlarm.enable = 1;
@@ -2659,9 +2905,12 @@ void setup()
     }
 
     // Define and start RTU server
+    MBserver.registerWorker(1, READ_COIL, &FC01);      // FC=01 for serverID=1
     MBserver.registerWorker(1, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=1
     MBserver.registerWorker(1, READ_INPUT_REGISTER, &FC04);     // FC=04 for serverID=1
-    MBserver.registerWorker(2, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=2
+    MBserver.registerWorker(1, WRITE_COIL, &FC05);     // FC=05 for serverID=1
+    MBserver.registerWorker(1, WRITE_HOLD_REGISTER, &FC06);      // FC=06 for serverID=1
+    MBserver.registerWorker(1, WRITE_MULT_REGISTERS, &FC16);    // FC=16 for serverID=1
     MBserver.start(502, 1, 20000);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
@@ -2675,6 +2924,7 @@ void setup()
     cmsRestartCommand.bid = 255;
     cmsRestartCommand.restart = 1;
     delay(2000); //wait for CMS to boot
+    systemStatus.bits.ready = 1;
 }
 
 void loop()
@@ -2710,7 +2960,7 @@ void loop()
         //     lastBuzzer = millis();
         //     flasher = !flasher;
         // }
-
+        digitalWrite(battRelay, LOW);
     }
     else
     {
@@ -2718,10 +2968,29 @@ void loop()
         lastBuzzer = millis();
         digitalWrite(buzzer, LOW);
         flasher = false;
+        digitalWrite(battRelay, HIGH);
     }
-        
-    digitalWrite(relay[0], !alarmCommand.powerRelay);
-    digitalWrite(relay[1], !alarmCommand.battRelay);
+
+    if (manualOverride)
+    {
+        if (alarmCommand.battRelay)
+        {
+            Serial.println("Battery Relay On");
+        }
+        if (alarmCommand.buzzer)
+        {
+            Serial.println("Buzzer On");
+        }
+    }
+
+    if (factoryReset)
+    {
+        Serial.println("Factory Reset");
+    }
+
+
+    // digitalWrite(relay[0], !alarmCommand.powerRelay);
+    // digitalWrite(relay[1], !alarmCommand.battRelay);
     if(Serial.available())
     {
         char c = Serial.read();
@@ -2759,7 +3028,10 @@ void loop()
     if (commandCompleted)
     {
         Serial.println(commandString);
-        evalCommand(commandString);
+        #ifndef DEBUG
+            evalCommand(commandString);
+        #endif
+        checkResponse(commandString);
         commandCompleted = false;
         commandString = "";
     }
@@ -2804,6 +3076,7 @@ void loop()
             msgCount[i]++;
             cellData[i].msgCount = msgCount[i];
             data.rackSn = rackSn;
+            systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
             #ifdef AUTO_POST
                 String phpName = "update.php";
                 String link = serverName + phpName;
@@ -3484,6 +3757,7 @@ void loop()
             if (addressList.size() > 0) //check if addressing success
             {
                 // Serial.println("addressList > 0");
+                systemStatus.bits.condition = 1;
                 if (sendCommand)
                 {
                     // Serial.println("send command");
@@ -3595,6 +3869,7 @@ void loop()
         }
         else
         {
+            systemStatus.bits.condition = 0;
             resetUpdater();
             sendCommand = true;
             isGotCMSInfo = false;

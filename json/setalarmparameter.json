@@ -1,6 +1,9 @@
 {
+    "vcell_diff" : 300,
+    "vcell_diff_reconnect" : 250,
     "vcell_max": 3500,
     "vcell_min": 2600,
+    "vcell_reconnect" : 3200,
     "temp_max": 100000,
     "temp_min": 20000
 }
