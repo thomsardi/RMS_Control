@@ -93,6 +93,7 @@ int Updater::checkDataCompleted()
     int status = 0;
     if (_isVcellUpdated && _isTempUpdated && _isVpackUpdated && _isStatusUpdated)
     {
+        Serial.println("All required data is updated");
         status = 1;
     }
     return status;

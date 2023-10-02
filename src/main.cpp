@@ -53,15 +53,15 @@
 
 // #define AUTO_POST 1 //comment to disable server auto post
 
-// #define LAMINATE_ROOM 1 //uncomment to use board in laminate room
+#define LAMINATE_ROOM 1 //uncomment to use board in laminate room
 
 #define CYCLING 1
 
 #define HARDWARE_ALARM 1
 
-#define DEBUG 1
+// #define DEBUG 1
 
-// #define DEBUG_STATIC 1
+#define DEBUG_STATIC 1
 
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
@@ -187,6 +187,7 @@ AddressingCommand addressingCommand;
 AlarmCommand alarmCommand;
 SleepCommand sleepCommand;
 DataCollectionCommand dataCollectionCommand;
+DataCollectionCommand testDataCollection;
 CellBalancingStatus cellBalancingStatus[8];
 CommandStatus commandStatus;
 RmsCodeWrite rmsCodeWrite;
@@ -232,7 +233,7 @@ int dataComplete = 0;
 uint16_t msgCount[16];
 int addressListStorage[12];
 Vector<int> addressList(addressListStorage);
-int8_t isDataNormalList[12] = {-1};
+int8_t isDataNormalList[12];
 
 bool balancingCommand = false;
 bool commandCompleted = false;
@@ -257,6 +258,8 @@ bool isFromSequence = false;
 bool addressingByButton = false;
 bool manualOverride = false;
 bool factoryReset = false;
+bool forceBuzzer = false;
+bool forceRelay = false;
 
 int isAddressingCompleted = 0;
 int commandSequence = 0;
@@ -377,6 +380,15 @@ void declareStruct()
     commandStatus.dataCollectionCommand = 0;
     commandStatus.sleepCommand = 0;
 
+}
+
+template <typename T>
+void fillArray(T a[], size_t len, T value)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        a[i] = value;
+    }
 }
 
 int writeToEeprom(int dataAddress, int flagAddress, String &newName, String &oldName)
@@ -2308,10 +2320,29 @@ void buttonDoubleClicked()
 
 void IRAM_ATTR onTimer()
 {
-    if (alarmCommand.buzzer)
+    if (!manualOverride)
     {
-        digitalWrite(buzzer, !digitalRead(buzzer));
+        if (alarmCommand.buzzer)
+        {
+            digitalWrite(buzzer, !digitalRead(buzzer));
+        }
+        else
+        {
+            digitalWrite(buzzer, LOW);
+        }
     }
+    else
+    {
+        if (forceBuzzer)
+        {
+            digitalWrite(buzzer, !digitalRead(buzzer));
+        }
+        else
+        {
+            digitalWrite(buzzer, LOW);
+        }
+    }
+           
 }
 
 void setup()
@@ -2344,6 +2375,12 @@ void setup()
     mbusCoilData.link(boolPtr, 6);
     boolPtr = reinterpret_cast<bool*>(&factoryReset);
     mbusCoilData.link(boolPtr, 7);
+    boolPtr = reinterpret_cast<bool*>(&forceBuzzer);
+    mbusCoilData.link(boolPtr, 8);
+    boolPtr = reinterpret_cast<bool*>(&forceRelay);
+    mbusCoilData.link(boolPtr, 9);
+    boolPtr = reinterpret_cast<bool*>(&testDataCollection.exec);
+    mbusCoilData.link(boolPtr, 10);
 
     modbusRegisterData.inputRegister.cellData = cellData;
     modbusRegisterData.inputRegister.cellDataSize = cellDataSize;
@@ -2420,7 +2457,7 @@ void setup()
         // }
     #endif
 
-    #ifdef DEBUG_STATIC
+    #ifdef DEBUG_STATIC    
         if (!WiFi.config(local_ip, gateway, subnet))
         {
             Serial.println("STA Failed to configure");
@@ -2508,6 +2545,7 @@ void setup()
         hardwareAlarm.enable = 1;
     #endif
     declareStruct();
+    fillArray<int8_t>(isDataNormalList, 12, -1);
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
     ledAnimation.run();
@@ -2924,8 +2962,13 @@ void setup()
     dataCollectionCommand.exec = false;
     cmsRestartCommand.bid = 255;
     cmsRestartCommand.restart = 1;
+    // for (size_t i = 0; i < 12; i++)
+    // {
+    //     Serial.println("Data normal list : " + String(isDataNormalList[i]));
+    // }
     delay(2000); //wait for CMS to boot
     systemStatus.bits.ready = 1;
+    testDataCollection.exec = 1;
 }
 
 void loop()
@@ -2947,28 +2990,26 @@ void loop()
         WiFi.reconnect();
         lastReconnectMillis = millis();
     }
-    
-    if (alarmCommand.buzzer)
-    {
-        digitalWrite(battRelay, LOW);
-        // Serial.println("Alarm On");
-    }
-    else
-    {
-        digitalWrite(buzzer, LOW);
-        digitalWrite(battRelay, HIGH);
-        // Serial.println("Alarm Off");
-    }
 
     if (manualOverride)
     {
-        if (alarmCommand.battRelay)
+        // Serial.println("Manual Override");
+        digitalWrite(battRelay, forceRelay);
+        if (!forceBuzzer)
         {
-            Serial.println("Battery Relay On");
+            digitalWrite(buzzer, LOW);
         }
+    }
+    else
+    {
         if (alarmCommand.buzzer)
         {
-            Serial.println("Buzzer On");
+            digitalWrite(battRelay, LOW);
+        }
+        else
+        {
+            digitalWrite(buzzer, LOW);
+            digitalWrite(battRelay, HIGH);
         }
     }
 
@@ -2976,7 +3017,6 @@ void loop()
     {
         Serial.println("Factory Reset");
     }
-
 
     // digitalWrite(relay[0], !alarmCommand.powerRelay);
     // digitalWrite(relay[1], !alarmCommand.battRelay);
@@ -3056,7 +3096,7 @@ void loop()
         // Serial.println("Device Address : " + String(addressList.at(i)));
         // Serial.println("is Update = " + String(isUpdate));
         if(isUpdate)
-        {
+        {            
             int isDataNormal = updater[addressList.at(i) - 1].isDataNormal();
             isDataNormalList[addressList.at(i) - 1] = isDataNormal;
             Serial.println("Bid : " + String(addressList.at(i) - 1));
@@ -3065,7 +3105,7 @@ void loop()
             msgCount[i]++;
             cellData[i].msgCount = msgCount[i];
             data.rackSn = rackSn;
-            systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
+            // systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
             #ifdef AUTO_POST
                 String phpName = "update.php";
                 String link = serverName + phpName;
@@ -3086,10 +3126,12 @@ void loop()
     }
 
     if(dataCollectionCommand.exec)
+    // if (testDataCollection.exec)
     {
         if(hardwareAlarm.enable)
         {
-            bool error = true;
+            // bool error = true;
+            bool isDataNormalListUpdated = false;
             int8_t tempData;
             bool buzzerState = 0;
             for(int i = 0; i < addressList.size(); i++)
@@ -3105,12 +3147,17 @@ void loop()
                 }
                 else
                 {
-                    error = false;
-                    if (tempData > 0)
+                    // for (size_t i = 0; i < 12; i++)
+                    // {
+                    //     Serial.println("Data normal list : " + String(isDataNormalList[i]));
+                    // }
+                    
+                    isDataNormalListUpdated = true;
+                    if (tempData > 0) //data normal no alarm
                     {
                         buzzerState = 0;
                     }
-                    else
+                    else //data abnormal alarm
                     {
                         buzzerState = 1;
                         break;
@@ -3118,15 +3165,65 @@ void loop()
                 }
                 // Serial.println("Data Normal : " + String(dataNormal));
             }
-            if(!error)
+
+            bool cellDiffAlm = false;
+            bool cellOvervoltage = false;
+            bool cellUndervoltage = false;
+            bool overtemperature = false;
+            bool undertemperature = false;
+
+            for(int i = 0; i < addressList.size(); i++)
             {
-                alarmCommand.buzzer = buzzerState;
+                if(cellData[addressList.at(i) - 1].packStatus.bits.cellDiffAlarm)
+                {
+                    cellDiffAlm = 1; 
+                    break;
+                }  
             }
-            else
+            for(int i = 0; i < addressList.size(); i++)
             {
-                // Serial.println("data normal not updated");
-                alarmCommand.buzzer = 0;
+                if(cellData[addressList.at(i) - 1].packStatus.bits.cellOvervoltage)
+                {
+                    cellOvervoltage = 1; 
+                    break;
+                }  
             }
+            for(int i = 0; i < addressList.size(); i++)
+            {
+                if(cellData[addressList.at(i) - 1].packStatus.bits.cellUndervoltage)
+                {
+                    cellUndervoltage = 1; 
+                    break;
+                }  
+            }
+            for(int i = 0; i < addressList.size(); i++)
+            {
+                if(cellData[addressList.at(i) - 1].packStatus.bits.overtemperature)
+                {
+                    overtemperature = 1; 
+                    break;
+                }  
+            }
+            for(int i = 0; i < addressList.size(); i++)
+            {
+                if(cellData[addressList.at(i) - 1].packStatus.bits.undertemperature)
+                {
+                    undertemperature = 1;
+                    break; 
+                }  
+            }
+
+            systemStatus.bits.cellDiffAlarm = cellDiffAlm;
+            systemStatus.bits.cellOvervoltage = cellOvervoltage;
+            systemStatus.bits.cellUndervoltage = cellUndervoltage;
+            systemStatus.bits.overtemperature = overtemperature;
+            systemStatus.bits.undertemperature = undertemperature;
+            alarmCommand.buzzer = buzzerState;
+
+            // if(isDataNormalListUpdated)
+            // {
+            //     Serial.println("Buzzer state : " + String(buzzerState));
+            // }
         }
     }
     
@@ -3860,6 +3957,10 @@ void loop()
         {
             systemStatus.bits.condition = 0;
             resetUpdater();
+            // if (!testDataCollection.exec)
+            // {
+            //     resetUpdater();
+            // }
             sendCommand = true;
             isGotCMSInfo = false;
             deviceAddress = 0;

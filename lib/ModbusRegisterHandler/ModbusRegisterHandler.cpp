@@ -54,6 +54,8 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
     int startAddr = addr;
     int endAddr = addr + words;
 
+    int offset = 9000;
+
     if (addr != 9000) 
     {
         int group = addr / _blockSize;
@@ -114,7 +116,9 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
         }
         else
         {
-            for (uint8_t i = startAddr; i < endAddr; ++i) //add all requested address
+            uint8_t start = startAddr - offset;
+            uint8_t end = endAddr - offset;
+            for (uint8_t i = start; i < end; ++i) //add all requested address
             {
                 // send increasing data values
                 // Serial.println((*_otherInfo)[i]);

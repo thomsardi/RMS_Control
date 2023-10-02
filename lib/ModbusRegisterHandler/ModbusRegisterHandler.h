@@ -16,9 +16,8 @@ union SystemStatus {
         uint16_t undertemperature : 1;
         uint16_t : 3;
         uint16_t condition : 1;
-        uint16_t relayOutput : 1;
         uint16_t ready : 1;
-        uint16_t : 5;
+        uint16_t : 6;
     } bits;
     uint16_t val;
 };
@@ -86,8 +85,8 @@ struct SettingRegisters {
 };
 
 struct MbusCoilData {
-    bool *data[8];
-    size_t elementSize = 8;
+    bool *data[11];
+    size_t elementSize = 11;
 
     bool get(int i) {
         // Serial.println(*params.value.fields.temp_max_hi);
