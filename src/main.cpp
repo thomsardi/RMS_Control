@@ -2431,6 +2431,9 @@ void setup()
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
+    Serial.print("Try connecting to ");
+    Serial.println(ssid);
+
     #ifndef DEBUG
         WiFi.begin(ssid, password);
     #else
