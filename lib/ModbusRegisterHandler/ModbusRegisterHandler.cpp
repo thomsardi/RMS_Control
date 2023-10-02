@@ -18,6 +18,7 @@ ModbusMessage ModbusRegisterHandler::handleReadCoils(const ModbusMessage &reques
     uint16_t numCoils = 0;
     request.get(2, start, numCoils);
     CoilData myCoils(_mbusCoilData->elementSize);
+    uint8_t functionCode = 0x01;
 
     int endAddr = start + numCoils;
     
@@ -33,6 +34,7 @@ ModbusMessage ModbusRegisterHandler::handleReadCoils(const ModbusMessage &reques
         vector<uint8_t> coilset = myCoils.slice(start, numCoils);
         // Set up response according to the specs: serverID, function code, number of bytes to follow, packed coils
         response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)coilset.size(), coilset);
+        // response.add(request.getServerID(), functionCode, (uint8_t)coilset.size(), coilset);
     } else {
         // Something was wrong with the parameters
         response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);

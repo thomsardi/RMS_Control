@@ -131,8 +131,8 @@ hw_timer_t *myTimer = NULL;
     // const char *password = "sundaya21";
 #else
     // const char *ssid = "RnD_Sundaya";
-    const char *ssid = "Laminate";
-    // const char *password = "sundaya22";
+    const char *ssid = "Ruang_Laminate";
+    const char *password = "sundaya22";
 #endif
 
 const char *host = DATABASE_IP;
@@ -143,7 +143,7 @@ const char *host = DATABASE_IP;
 #ifdef LAMINATE_ROOM
     // Set your Static IP address
     #ifdef CYCLING
-        IPAddress local_ip(200, 10, 2, 212);
+        IPAddress local_ip(200, 10, 2, 214);
         IPAddress gateway(200, 10, 2, 1);
     #else
         IPAddress local_ip(200, 10, 2, 200);
@@ -240,7 +240,6 @@ bool responseCompleted = false;
 bool isFirstRun = true;
 bool sendCommand = true;
 bool isGotCMSInfo = false;
-bool flasher = true;
 bool lastStateDataCollection = false;
 bool lastFrameWrite = false;
 bool lastCmsCodeWrite = false;
@@ -265,7 +264,6 @@ int deviceAddress = 1;
 int lastDeviceAddress = 16;
 int cmsInfoRetry = 0;
 unsigned long lastTime = 0;
-unsigned long lastBuzzer = 0;
 unsigned long lastReceivedSerialData = 0;
 unsigned long lastProcessResponse = 0;
 unsigned long lastReconnectMillis = 0;
@@ -2267,7 +2265,7 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.println(info.wifi_sta_disconnected.reason);
     Serial.println("Trying to Reconnect");
     #ifndef DEBUG
-        // WiFi.begin(ssid);
+        WiFi.begin(ssid, password);
     #else
         WiFi.begin(ssid, password);
     #endif
@@ -2375,10 +2373,10 @@ void setup()
     pinMode(internalLed, OUTPUT);
     Serial.begin(115200);
 
-    for (size_t i = 0; i < 9; i++)
-    {
-        Serial.println(settingRegisters.get(i));
-    }
+    // for (size_t i = 0; i < 9; i++)
+    // {
+    //     Serial.println(settingRegisters.get(i));
+    // }
     // uint16_t val = settingRegisters.get(0);
     // Serial.println(t.get(0));
     // Serial.println(val);
@@ -2416,10 +2414,10 @@ void setup()
     WiFi.mode(WIFI_STA);
     
     #ifndef DEBUG
-        if (!WiFi.config(local_ip, gateway, subnet))
-        {
-            Serial.println("STA Failed to configure");
-        }
+        // if (!WiFi.config(local_ip, gateway, subnet))
+        // {
+        //     Serial.println("STA Failed to configure");
+        // }
     #endif
 
     #ifdef DEBUG_STATIC
@@ -2434,7 +2432,7 @@ void setup()
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     #ifndef DEBUG
-        WiFi.begin(ssid);
+        WiFi.begin(ssid, password);
     #else
         WiFi.begin(ssid, password);
     #endif
@@ -2949,26 +2947,14 @@ void loop()
     
     if (alarmCommand.buzzer)
     {
-        // Serial.println("Buzzer On");
-        // digitalWrite(buzzer, HIGH);
-        // if (millis() - lastBuzzer < 1000)
-        // {
-        //     digitalWrite(buzzer, flasher);
-        // }
-        // else
-        // {
-        //     lastBuzzer = millis();
-        //     flasher = !flasher;
-        // }
         digitalWrite(battRelay, LOW);
+        // Serial.println("Alarm On");
     }
     else
     {
-        // Serial.println("Buzzer Off");
-        lastBuzzer = millis();
         digitalWrite(buzzer, LOW);
-        flasher = false;
         digitalWrite(battRelay, HIGH);
+        // Serial.println("Alarm Off");
     }
 
     if (manualOverride)
