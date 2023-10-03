@@ -262,6 +262,8 @@ String serverName = SERVER_NAME;
 String rmsCode = "RMS-32-NA";
 String rackSn = "RACK-32-NA";
 
+uint8_t activeMode;
+
 namespace Network {
     enum Server {
         STATIC = 1,
@@ -2434,8 +2436,10 @@ void setup()
 
     Preferences preferences;
     preferences.begin("dev_params");
-
-    if (preferences.getChar("set_flag") == 0)
+    uint8_t nFlag = preferences.getChar("n_flag");
+    uint8_t pFlag = preferences.getChar("p_flag");
+    preferences.end();
+    if ((nFlag == 0) || (pFlag == 0))
     {
         setDefaultPreference();
         setUserPreference();
@@ -2512,8 +2516,124 @@ void setup()
     WiFi.mode(WIFI_MODE_NULL);
     delay(100);
     WiFi.setHostname(hostName.c_str());
-    WiFi.mode(WIFI_STA);
+    // WiFi.mode(WIFI_STA);
+
+    String networkSsid;
+    String pwd;
+    IPAddress ipAddr;
+    IPAddress gatewayAddr;
+    IPAddress subnetAddr;
+    uint8_t mode;
+    uint8_t serverType;
+
+    preferences.begin("dev_params");
+
+    if (preferences.getChar("n_flag") == 1)
+    {
+        networkSsid = preferences.getString("d_ssid");
+        pwd = preferences.getString("d_pass");
+        ipAddr.fromString(preferences.getString("d_ip"));
+        gatewayAddr.fromString(preferences.getString("d_gateway"));
+        subnetAddr.fromString(preferences.getString("d_subnet"));
+        serverType = preferences.getChar("d_server");
+        mode = preferences.getChar("d_mode");
+        // Serial.println("=====Default=====");
+        // Serial.println("SSID : " + ssid);
+        // Serial.println("Pass : " + password);
+        // Serial.println("Ip : " + ipAddress);
+        // Serial.println("Gateway : " + gateways);
+        // Serial.println("Subnet : " + subnets);
+        switch (mode)
+        {
+            case Network::MODE::AP :
+                // Serial.println("Default AP");
+                WiFi.mode(WIFI_AP);
+            break;
+            case Network::MODE::STATION :
+                // Serial.println("Default Station");
+                WiFi.mode(WIFI_STA);
+            break;
+            default:
+            break;
+        }
+
+        switch (serverType)
+        {
+            case Network::Server::STATIC :
+            // Serial.println("Default Static");
+
+            if (mode == Network::MODE::STATION)
+            {
+                if (!WiFi.config(ipAddr, gatewayAddr, subnetAddr))
+                {
+                    Serial.println("STA Failed to configure");
+                }
+            }
+            else
+            {
+                if (!WiFi.softAPConfig(ipAddr, gatewayAddr, subnetAddr))
+                {
+                Serial.println("AP Failed to configure");
+                }
+            }
+            break;
+
+            case Network::Server::DHCP :
+                // Serial.println("Default Dynamic");
+            break;
+            
+            default:
+            break;
+        }
+    }
+    else
+    {
+        networkSsid = preferences.getString("ssid");
+        pwd = preferences.getString("pass");
+        ipAddr.fromString(preferences.getString("ip"));
+        gatewayAddr.fromString(preferences.getString("gateway"));
+        subnetAddr.fromString(preferences.getString("subnet"));
+        serverType = preferences.getChar("server");
+        mode = preferences.getChar("mode");
+        // Serial.println("=====User=====");
+        // Serial.println("SSID : " + ssid);
+        // Serial.println("Pass : " + password);
+        // Serial.println("Ip : " + ipAddress);
+        // Serial.println("Gateway : " + gateways);
+        // Serial.println("Subnet : " + subnets);
+        switch (mode)
+        {
+            case Network::MODE::AP :
+                // Serial.println("User AP");
+                WiFi.mode(WIFI_AP);
+            break;
+            case Network::MODE::STATION :
+                // Serial.println("User Station");
+                WiFi.mode(WIFI_STA);
+            break;
+            default:
+            break;
+        }
+
+        switch (serverType)
+        {
+            case Network::Server::STATIC :
+                if (!WiFi.config(ipAddr, gatewayAddr, subnetAddr))
+                {
+                    Serial.println("STA Failed to configure");
+                }
+            break;
+            case Network::Server::DHCP :
+                // Serial.println("User Dynamic");
+            break;
+            
+            default:
+            break;
+        }
+    }
     
+    preferences.end();
+
     #ifdef DEBUG_STATIC    
         if (!WiFi.config(local_ip, gateway, subnet))
         {
@@ -2526,39 +2646,41 @@ void setup()
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     Serial.print("Try connecting to ");
-    Serial.println(ssid);
-
-    WiFi.begin(ssid, password);
-
-    // WiFi.begin(ssid);
-    // sr.setAllLow();
-    // digitalWrite(buzzer, HIGH);
-    // delay(500);
-    // digitalWrite(buzzer, LOW);
+    Serial.println(networkSsid);
 
     int timeout = 0;
-    Serial.println("Connecting..");
-    while(timeout < 10)
+    if (mode == Network::MODE::STATION)
     {
-        if (WiFi.status() != WL_CONNECTED)
+        WiFi.begin(networkSsid, pwd);
+        while (WiFi.status() != WL_CONNECTED)
         {
-            // Serial2.print(".");
+            if (timeout >= 10)
+            {
+                Serial.println("Failed to connect into " + networkSsid);
+                break;
+            }
             Serial.print(".");
-            leds[9] = CRGB::Gold;
-            FastLED.setBrightness(1);
-            FastLED.show();
-            delay(100);
-            leds[9] = CRGB::GreenYellow;
-            FastLED.setBrightness(20);
-            FastLED.show();
-            delay(100);
+            delay(500);
             timeout++;
         }
-        else
-        {
-            break;
-        }
     }
+    else
+    {
+        WiFi.softAP(ssid,password);
+        Serial.println("AP Connected");
+        Serial.print("SSID : ");
+        Serial.println(networkSsid);
+        Serial.print("IP address: ");
+        Serial.println(WiFi.softAPIP().toString());
+        Serial.print("Subnet Mask: ");
+        Serial.println(subnetAddr);
+        Serial.print("Gateway IP: ");
+        Serial.println(gatewayAddr);
+        Serial.print("Hostname: ");
+        Serial.println(WiFi.softAPgetHostname());
+        digitalWrite(internalLed, HIGH);
+    }
+
     delay(100); //wait a bit to stabilize voltage and current
     if (!MDNS.begin(hostName.c_str())) {             // Start the mDNS responder for esp8266.local
         Serial.println("Error setting up MDNS responder!");
@@ -2569,27 +2691,15 @@ void setup()
     // lcd.init();
     // lcd.backlight();    
     // lcd.clear();
-    if (timeout < 10)
+
+    if (timeout >= 10)
     {
-        leds[9] = CRGB::LawnGreen;
-        FastLED.setBrightness(20);
-        FastLED.show();
-        digitalWrite(internalLed, HIGH);
-        // lcd.setCursor(0, 0);
-        // lcd.print("IP :");
-        // lcd.setCursor(0,1);
-        // lcd.print(WiFi.localIP());
-    }
-    else
-    {
-        leds[9] = CRGB::Red;
-        FastLED.setBrightness(20);
-        FastLED.show();
         Serial.println("WiFi Not Connected");
         digitalWrite(internalLed, LOW);
-        // lcd.setCursor(0,0);
-        // lcd.print("Not Connected");
     }
+
+    activeMode = mode;
+
     timerAlarmEnable(myTimer);
     delay(100); //wait a bit to stabilize the voltage and current consumption
     digitalWrite(battRelay, HIGH);
@@ -2682,12 +2792,48 @@ void setup()
         {
             addressingStatus.deviceAddressList[i] = addressList.at(i);
             Serial.println(addressingStatus.deviceAddressList[i]);
-
         }
         addressingStatus.status = isAddressingCompleted;
         Serial.println("Addressing Completed Flag : " + String(addressingStatus.status));
         String jsonOutput = jsonManager.buildJsonAddressingStatus(addressingStatus, addressList.size());
         request->send(200, "application/json", jsonOutput); });
+
+    server.on("/get-network-info", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+      // Serial.println("get-data");
+      NetworkSetting s;
+      switch (activeMode)
+      {
+      case Network::MODE::STATION :
+        s.ssid = WiFi.SSID();
+        s.ip = WiFi.localIP().toString();
+        break;
+      case Network::MODE::AP :
+        s.ssid = WiFi.softAPSSID();
+        s.ip = WiFi.softAPIP().toString();
+        break;
+      default:
+        break;
+      }
+      // Serial.println(jsonParser.getNetworkInfo(s));
+      request->send(200, "application/json", jsonManager.getNetworkInfo(s)); });
+
+    server.on("/get-user-network-setting", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+      // Serial.println("get-data");
+      NetworkSetting s;
+      Preferences preferences;
+      preferences.begin("dev_params");
+      s.ssid = preferences.getString("ssid");
+      s.pass = preferences.getString("pass");
+      s.ip = preferences.getString("ip");
+      s.gateway = preferences.getString("gateway");
+      s.subnet = preferences.getString("subnet");
+      s.mode = preferences.getChar("mode");
+      s.server = preferences.getChar("server");
+      preferences.end();
+      // Serial.println(jsonParser.getNetworkInfo(s));
+      request->send(200, "application/json", jsonManager.getUserNetworkSetting(s)); });
 
     server.on("/post-test", HTTP_POST, [](AsyncWebServerRequest *request)
     {
@@ -2971,6 +3117,37 @@ void setup()
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
+    AsyncCallbackJsonWebHandler *setNetwork = new AsyncCallbackJsonWebHandler("/set-network", [](AsyncWebServerRequest *request, JsonVariant &json)
+    {
+        String response = R"(
+        {
+        "status" : :status:
+        }
+        )";
+        
+        NetworkSetting setting = jsonManager.parseNetworkSetting(json);
+        Preferences preferences;
+        preferences.begin("dev_params");
+        if (setting.flag > 0)
+        {
+            preferences.putString("ssid", setting.ssid);
+            preferences.putString("pass", setting.pass);
+            preferences.putString("ip", setting.ip);
+            preferences.putString("gateway", setting.gateway);
+            preferences.putString("subnet", setting.subnet);
+            preferences.putChar("server", setting.server);
+            preferences.putChar("mode", setting.mode);
+            preferences.putChar("set_flag", 2);
+            response.replace(":status:", String(setting.flag));
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400);
+        }
+        preferences.end();
+    });
+
     server.addHandler(setBalancingHandler);
     server.addHandler(setAddressHandler);
     server.addHandler(setAlarmHandler);
@@ -2990,6 +3167,7 @@ void setup()
     server.addHandler(restartCMSHandler);
     server.addHandler(restartRMSHandler);
     server.addHandler(setOtaUpdate);
+    server.addHandler(setNetwork);
     // server.addHandler(restartCMSViaPinHandler);
 
     MBserver.registerWorker(1, READ_COIL, &FC01);      // FC=01 for serverID=1

@@ -17,6 +17,17 @@
 #include <ESPAsyncWebServer.h>
 #include <Vector.h>
 
+struct NetworkSetting {
+    String ssid;
+    String pass;
+    String ip;
+    String gateway;
+    String subnet;
+    int8_t server; //server = 1 is for static, 2 for dhcp
+    int8_t mode; //mode = 1 is for AP, 2 for Station
+    bool flag = 0;
+};
+
 class JsonManager {
     public :
         JsonManager();
@@ -31,6 +42,8 @@ class JsonManager {
         String buildJsonAlarmParameter(const AlarmParam& alarmParam); // get RMS alarm parameter
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)
         String buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize);
+        String getNetworkInfo(const NetworkSetting &networkSetting);
+        String getUserNetworkSetting(const NetworkSetting &networkSetting);
         void parser(const String &input, char delimiter, Vector<String> &valueVec);
         
 
@@ -57,7 +70,7 @@ class JsonManager {
         int jsonCMSRestartPinParser(const char* jsonInput);
         int jsonRMSRestartParser(const char* jsonInput);
         int jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter);
-        
+        NetworkSetting parseNetworkSetting(JsonVariant &json);
 
         private :
         int getBit(int pos, int data);
