@@ -284,26 +284,27 @@ void setDefaultPreference()
     /**
      * Store default network setting
     */
-    preferences.putString("def_ssid", defaultSsid);
-    preferences.putString("def_pass", "esp32-default");
-    preferences.putString("def_ip", "192.168.1.100");
-    preferences.putString("def_gateway", "192.168.1.1");
-    preferences.putString("def_subnet", "255.255.255.0");
-    preferences.putChar("def_server", Network::Server::STATIC);
-    preferences.putChar("def_mode", Network::MODE::AP);
+    preferences.putString("d_ssid", defaultSsid);
+    preferences.putString("d_pass", "esp32-default");
+    preferences.putString("d_ip", "192.168.1.100");
+    preferences.putString("d_gateway", "192.168.1.1");
+    preferences.putString("d_subnet", "255.255.255.0");
+    preferences.putChar("d_server", Network::Server::STATIC);
+    preferences.putChar("d_mode", Network::MODE::AP);
+    preferences.putChar("n_flag", 1); // network flag, 0 to initialize key, 1 to load from default, 2 to load from user
 
     /**
      * Store default device parameter setting
     */
-    preferences.putUShort("def_cdiff", 300);
-    preferences.putUShort("def_cdiff_r", 250);
-    preferences.putUShort("def_coverv", 3700);
-    preferences.putUShort("def_cunderv", 2800);
-    preferences.putUShort("def_cunderv_r", 3000);
-    preferences.putInt("def_covert", 80000);
-    preferences.putInt("def_cundert", 10000);
+    preferences.putUShort("d_cdiff", 300);
+    preferences.putUShort("d_cdiff_r", 250);
+    preferences.putUShort("d_coverv", 3700);
+    preferences.putUShort("d_cunderv", 2800);
+    preferences.putUShort("d_cunderv_r", 3000);
+    preferences.putInt("d_covert", 80000);
+    preferences.putInt("d_cundert", 10000);
+    preferences.putChar("p_flag", 1); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
 
-    preferences.putChar("set_flag", 1); // 0 to initialize key, 1 to load from default, 2 to load from user
     preferences.end();
 }
 
@@ -322,6 +323,7 @@ void setUserPreference()
     preferences.putString("subnet", "255.255.255.0");
     preferences.putChar("server", Network::Server::DHCP);
     preferences.putChar("mode", Network::MODE::STATION);
+    preferences.putChar("n_flag", 1); // network flag, 0 to initialize key, 1 to load from default, 2 to load from user
 
     /**
      * Store user device parameter setting
@@ -333,7 +335,8 @@ void setUserPreference()
     preferences.putUShort("cunderv_r", 3000);
     preferences.putInt("covert", 80000);
     preferences.putInt("cundert", 10000);
-    preferences.putChar("set_flag", 1); // 0 to initialize key, 1 to load from default, 2 to load from user
+    preferences.putChar("p_flag", 1); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
+    
     preferences.end();
 }
 
@@ -3061,7 +3064,14 @@ void loop()
 
     if (factoryReset)
     {
+        Preferences preferences;
+        preferences.begin("dev_params");
+        preferences.putChar("n_flag", 1);
+        preferences.putChar("p_flag", 1);
+        preferences.end();
         Serial.println("Factory Reset");
+        delay(500);
+        ESP.restart();
     }
 
     // digitalWrite(relay[0], !alarmCommand.powerRelay);

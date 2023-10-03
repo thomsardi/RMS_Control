@@ -249,13 +249,13 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
 
     if ((*_settingRegisters).get(9))
     {
-        preferences.putUShort("cell_diff", (*_settingRegisters).get(0));
-        preferences.putUShort("cell_diff_reconnect", (*_settingRegisters).get(1));
-        preferences.putUShort("cell_overvoltage", (*_settingRegisters).get(2));
-        preferences.putUShort("cell_undervoltage", (*_settingRegisters).get(3));
-        preferences.putUShort("cell_undervoltage_reconnect", (*_settingRegisters).get(4));
-        preferences.putInt("cell_overtemperature", (*_settingRegisters).getInt(5));
-        preferences.putInt("cell_undertemperature", (*_settingRegisters).getInt(7));
+        preferences.putUShort("cdiff", (*_settingRegisters).get(0));
+        preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
+        preferences.putUShort("coverv", (*_settingRegisters).get(2));
+        preferences.putUShort("cunderv", (*_settingRegisters).get(3));
+        preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
+        preferences.putInt("covert", (*_settingRegisters).getInt(5));
+        preferences.putInt("cundert", (*_settingRegisters).getInt(7));
     }
 
     if ((*_settingRegisters).get(18))
@@ -348,40 +348,30 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
 
     if ((*_settingRegisters).get(9))
     {
-        preferences.putUShort("cell_diff", (*_settingRegisters).get(0));
-        preferences.putUShort("cell_diff_reconnect", (*_settingRegisters).get(1));
-        preferences.putUShort("cell_overvoltage", (*_settingRegisters).get(2));
-        preferences.putUShort("cell_undervoltage", (*_settingRegisters).get(3));
-        preferences.putUShort("cell_undervoltage_reconnect", (*_settingRegisters).get(4));
-        preferences.putInt("cell_overtemperature", (*_settingRegisters).getInt(5));
-        preferences.putInt("cell_undertemperature", (*_settingRegisters).getInt(7));
+        preferences.putUShort("cdiff", (*_settingRegisters).get(0));
+        preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
+        preferences.putUShort("coverv", (*_settingRegisters).get(2));
+        preferences.putUShort("cunderv", (*_settingRegisters).get(3));
+        preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
+        preferences.putInt("covert", (*_settingRegisters).getInt(5));
+        preferences.putInt("cundert", (*_settingRegisters).getInt(7));
         (*_settingRegisters).set(9, 0);
+        preferences.putChar("p_flag", 2);
     }
 
-    if ((*_settingRegisters).get(18))
+    if ((*_settingRegisters).get(40))
     {
         String ssid;
-        
+        String pass;
         if ((*_settingRegisters).getString(10, ssid))
         {
             preferences.putString("ssid", ssid);
         }
-        
-        (*_settingRegisters).set(18, 0);
-    }
-
-    if ((*_settingRegisters).get(27))
-    {
-        String pass;
         if ((*_settingRegisters).getString(19, pass))
         {
             preferences.putString("pass", pass);
         }
-        (*_settingRegisters).set(27, 0);
-    }
 
-    if ((*_settingRegisters).get(42))
-    {
         uint8_t ipOctet[4];
         uint8_t gatewayOctet[4];
         uint8_t subnetOctet[4];
@@ -401,7 +391,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
         preferences.putString("subnet", subnetAddr.toString());
         preferences.putUChar("server", (*_settingRegisters).get(40));
         preferences.putUChar("mode", (*_settingRegisters).get(41));
-        (*_settingRegisters).set(42, 0);
+        preferences.putChar("n_flag", 2);
+        (*_settingRegisters).set(40, 0);
     }
     preferences.end();
     return response;
