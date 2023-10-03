@@ -30,6 +30,7 @@
 #include <ModbusServerTCPasync.h>
 #include <ModbusRegisterHandler.h>
 #include <Preferences.h>
+#include <nvs_flash.h>
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -53,15 +54,15 @@
 
 // #define AUTO_POST 1 //comment to disable server auto post
 
-#define LAMINATE_ROOM 1 //uncomment to use board in laminate room
+// #define LAMINATE_ROOM 1 //uncomment to use board in laminate room
 
 #define CYCLING 1
 
 #define HARDWARE_ALARM 1
 
-// #define DEBUG 1
+#define DEBUG 1
 
-#define DEBUG_STATIC 1
+// #define DEBUG_STATIC 1
 
 #ifdef LAMINATE_ROOM
     // #define SERIAL_DATA 12
@@ -82,22 +83,11 @@
     #define HOST_NAME "RMS-Rnd-Room"
 #endif
 
-int SET;
 int cell[45];
 int32_t temp[9];
 int32_t vpack[4]; // index 0 is total vpack
-int BACK;
-int state = 0;
-int emergency;
-int reset = 0;
-int alert = 0;
-// int relay[] = {22, 23};
 int battRelay = 23;
 int buzzer = 26;
-// int relayOn = 26;
-// int relayOff = 26;
-// create a global shift register object
-// parameters: <number of shift registers> (data pin, clock pin, latch pin)
 
 int internalLed = 2;
 
@@ -116,7 +106,6 @@ uint8_t ledDIN = 27;
 ShiftRegister74HC595<numOfShiftRegister> sr(SERIAL_DATA, SHCP, STCP);
 LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
 
-DynamicJsonDocument docBattery(1024);
 CRGB leds[NUM_LEDS];
 
 hw_timer_t *myTimer = NULL;
@@ -156,10 +145,6 @@ const char *host = DATABASE_IP;
 #endif
 
 // Set your Gateway IP address
-
-IPAddress modbusServer(192, 168, 2, 144);
-IPAddress subnet(255, 255, 255, 0);
-uint16_t port = 502;
 // IPAddress primaryDNS(192, 168, 2, 1);        // optional
 // IPAddress secondaryDNS(119, 18, 156, 10);       // optional
 String hostName = HOST_NAME;
@@ -171,8 +156,7 @@ LedAnimation ledAnimation(8,8, true);
 Updater updater[8];
 OneButton startButton(32, true, true);
 
-ModbusServerTCPasync MBserver;
-uint16_t memo[32]; 
+ModbusServerTCPasync MBserver; 
 
 Data data;
 CellData cellData[8];
@@ -278,6 +262,99 @@ String serverName = SERVER_NAME;
 String rmsCode = "RMS-32-NA";
 String rackSn = "RACK-32-NA";
 
+namespace Network {
+    enum Server {
+        STATIC = 1,
+        DHCP = 2
+    };
+    enum MODE {
+        AP = 1,
+        STATION = 2
+    };
+};
+
+void setDefaultPreference()
+{
+    String mac = WiFi.macAddress();
+    mac.replace(":", "");
+    String defaultSsid = "ESP32-" + mac;
+    Preferences preferences;
+    preferences.begin("dev_params");
+
+    /**
+     * Store default network setting
+    */
+    preferences.putString("def_ssid", defaultSsid);
+    preferences.putString("def_pass", "esp32-default");
+    preferences.putString("def_ip", "192.168.1.100");
+    preferences.putString("def_gateway", "192.168.1.1");
+    preferences.putString("def_subnet", "255.255.255.0");
+    preferences.putChar("def_server", Network::Server::STATIC);
+    preferences.putChar("def_mode", Network::MODE::AP);
+
+    /**
+     * Store default device parameter setting
+    */
+    preferences.putUShort("def_cdiff", 300);
+    preferences.putUShort("def_cdiff_r", 250);
+    preferences.putUShort("def_coverv", 3700);
+    preferences.putUShort("def_cunderv", 2800);
+    preferences.putUShort("def_cunderv_r", 3000);
+    preferences.putInt("def_covert", 80000);
+    preferences.putInt("def_cundert", 10000);
+
+    preferences.putChar("set_flag", 1); // 0 to initialize key, 1 to load from default, 2 to load from user
+    preferences.end();
+}
+
+void setUserPreference()
+{
+    Preferences preferences;
+    preferences.begin("dev_params");
+
+    /**
+     * Store user network setting
+    */
+    preferences.putString("ssid", "RnD_Sundaya");
+    preferences.putString("pass", "sundaya22");
+    preferences.putString("ip", "192.168.2.162");
+    preferences.putString("gateway", "192.168.2.1");
+    preferences.putString("subnet", "255.255.255.0");
+    preferences.putChar("server", Network::Server::DHCP);
+    preferences.putChar("mode", Network::MODE::STATION);
+
+    /**
+     * Store user device parameter setting
+    */
+    preferences.putUShort("cdiff", 300);
+    preferences.putUShort("cdiff_r", 250);
+    preferences.putUShort("coverv", 3700);
+    preferences.putUShort("cunderv", 2800);
+    preferences.putUShort("cunderv_r", 3000);
+    preferences.putInt("covert", 80000);
+    preferences.putInt("cundert", 10000);
+    preferences.putChar("set_flag", 1); // 0 to initialize key, 1 to load from default, 2 to load from user
+    preferences.end();
+}
+
+template <typename T>
+void fillArray(T a[], size_t len, T value)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        a[i] = value;
+    }
+}
+
+template <typename T>
+void fillArrayRandom(T a[], size_t len, T min, T max)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        a[i] = random(min, max);
+    }
+}
+
 void reInitCellData()
 {
     for (size_t i = 0; i < 8; i++)
@@ -288,18 +365,21 @@ void reInitCellData()
         cellData[i].mcuCodeName = "MCU-32-NA";
         cellData[i].siteLocation = "SITE-32-NA";
         cellData[i].bid = 0;
-        for (size_t j = 0; j < 45; j++)
-        {
-            cellData[i].vcell[j] = -1;
-        }
-        for (size_t j = 0; j < 9; j++)
-        {
-            cellData[i].temp[j] = -1;
-        }
-        for (size_t j = 0; j < 3; j++)
-        {
-            cellData[i].pack[j] = -1;
-        }
+        fillArray<int>(cellData[i].vcell, 45, -1);
+        fillArray<int32_t>(cellData[i].temp, 9, -1);
+        fillArray<int32_t>(cellData[i].pack, 3, -1);
+        // for (size_t j = 0; j < 45; j++)
+        // {
+        //     cellData[i].vcell[j] = -1;
+        // }
+        // for (size_t j = 0; j < 9; j++)
+        // {
+        //     cellData[i].temp[j] = -1;
+        // }
+        // for (size_t j = 0; j < 3; j++)
+        // {
+        //     cellData[i].pack[j] = -1;
+        // }
         cellData[i].packStatus.bits.status = 0;
         cellData[i].packStatus.bits.door = 0;
     }
@@ -380,15 +460,6 @@ void declareStruct()
     commandStatus.dataCollectionCommand = 0;
     commandStatus.sleepCommand = 0;
 
-}
-
-template <typename T>
-void fillArray(T a[], size_t len, T value)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        a[i] = value;
-    }
 }
 
 int writeToEeprom(int dataAddress, int flagAddress, String &newName, String &oldName)
@@ -2199,6 +2270,13 @@ ModbusMessage FC04(ModbusMessage request) {
 
     otherInfo.data[0] = addressList.size();
     otherInfo.data[1] = systemStatus.val;
+    // for (size_t i = 0; i < 8; i++)
+    // {
+    //     fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
+    //     fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
+    //     fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
+    // }
+    
     ModbusRegisterHandler mrh(modbusRegisterData);
     return mrh.handleReadInputRegisters(request);
     
@@ -2347,6 +2425,19 @@ void IRAM_ATTR onTimer()
 
 void setup()
 {
+    // nvs_flash_erase(); // erase the NVS partition and...
+    // nvs_flash_init(); // initialize the NVS partition.
+    // while(true);
+
+    Preferences preferences;
+    preferences.begin("dev_params");
+
+    if (preferences.getChar("set_flag") == 0)
+    {
+        setDefaultPreference();
+        setUserPreference();
+    }
+
     settingRegisters.link(&alarmParam.vcell_diff, 0);
     settingRegisters.link(&alarmParam.vcell_diff_reconnect, 1);
     settingRegisters.link(&alarmParam.vcell_max, 2);
@@ -2410,36 +2501,6 @@ void setup()
     pinMode(internalLed, OUTPUT);
     Serial.begin(115200);
 
-    // for (size_t i = 0; i < 9; i++)
-    // {
-    //     Serial.println(settingRegisters.get(i));
-    // }
-    // uint16_t val = settingRegisters.get(0);
-    // Serial.println(t.get(0));
-    // Serial.println(val);
-    
-    
-    // Serial.println("Temp Max");
-    // Serial.println(settingRegisters.get(5));
-    // Serial.println(settingRegisters.get(6));
-    // Serial.println("Temp Min");
-    // Serial.println(settingRegisters.get(7));
-    // Serial.println(settingRegisters.get(8));
-    
-
-    // Serial.println("Temp Min");
-    // Serial.println(*(ptr2));
-    // Serial.println(*(ptr2+1));
-    // settingRegisters.temp_max_hi = 100000 >> 16;
-    // settingRegisters.temp_max_lo = 100000 & 0xFFFF;
-    // Serial.print(settingRegisters[5], HEX);
-    // Serial.println(settingRegisters[6], HEX);
-    // otherInfo.connectedBattery = 2;
-    // otherInfo.systemStatus = 32;
-
-    // Serial.println(otherInfo[0]);
-    // Serial.println(otherInfo[1]);
-
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
@@ -2450,13 +2511,6 @@ void setup()
     WiFi.setHostname(hostName.c_str());
     WiFi.mode(WIFI_STA);
     
-    #ifndef DEBUG
-        // if (!WiFi.config(local_ip, gateway, subnet))
-        // {
-        //     Serial.println("STA Failed to configure");
-        // }
-    #endif
-
     #ifdef DEBUG_STATIC    
         if (!WiFi.config(local_ip, gateway, subnet))
         {
@@ -2471,11 +2525,8 @@ void setup()
     Serial.print("Try connecting to ");
     Serial.println(ssid);
 
-    #ifndef DEBUG
-        WiFi.begin(ssid, password);
-    #else
-        WiFi.begin(ssid, password);
-    #endif
+    WiFi.begin(ssid, password);
+
     // WiFi.begin(ssid);
     // sr.setAllLow();
     // digitalWrite(buzzer, HIGH);
@@ -2938,19 +2989,14 @@ void setup()
     server.addHandler(setOtaUpdate);
     // server.addHandler(restartCMSViaPinHandler);
 
-    // Set up test memory
-    for (uint16_t i = 0; i < 32; ++i) {
-        memo[i] = (i * 2) << 8 | ((i * 2) + 1);
-    }
-
-    // Define and start RTU server
     MBserver.registerWorker(1, READ_COIL, &FC01);      // FC=01 for serverID=1
     MBserver.registerWorker(1, READ_HOLD_REGISTER, &FC03);      // FC=03 for serverID=1
     MBserver.registerWorker(1, READ_INPUT_REGISTER, &FC04);     // FC=04 for serverID=1
     MBserver.registerWorker(1, WRITE_COIL, &FC05);     // FC=05 for serverID=1
     MBserver.registerWorker(1, WRITE_HOLD_REGISTER, &FC06);      // FC=06 for serverID=1
     MBserver.registerWorker(1, WRITE_MULT_REGISTERS, &FC16);    // FC=16 for serverID=1
-    MBserver.start(502, 1, 20000);
+
+    MBserver.start(502, 10, 20000);
 
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();

@@ -239,11 +239,71 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
         {
             // send increasing data values
             index = request.get(index, value);
-            (*_settingRegisters).set(value, startAddr + i);
+            (*_settingRegisters).set(startAddr + i, value);
         }
         
     }
 
+    Preferences preferences;
+    preferences.begin("dev_params");
+
+    if ((*_settingRegisters).get(9))
+    {
+        preferences.putUShort("cell_diff", (*_settingRegisters).get(0));
+        preferences.putUShort("cell_diff_reconnect", (*_settingRegisters).get(1));
+        preferences.putUShort("cell_overvoltage", (*_settingRegisters).get(2));
+        preferences.putUShort("cell_undervoltage", (*_settingRegisters).get(3));
+        preferences.putUShort("cell_undervoltage_reconnect", (*_settingRegisters).get(4));
+        preferences.putInt("cell_overtemperature", (*_settingRegisters).getInt(5));
+        preferences.putInt("cell_undertemperature", (*_settingRegisters).getInt(7));
+    }
+
+    if ((*_settingRegisters).get(18))
+    {
+        String ssid;
+        
+        if ((*_settingRegisters).getString(10, ssid))
+        {
+            preferences.putString("ssid", ssid);
+        }
+        
+        (*_settingRegisters).set(18, 0);
+    }
+
+    if ((*_settingRegisters).get(27))
+    {
+        String pass;
+        if ((*_settingRegisters).getString(19, pass))
+        {
+            preferences.putString("pass", pass);
+        }
+        (*_settingRegisters).set(27, 0);
+    }
+
+    if ((*_settingRegisters).get(42))
+    {
+        uint8_t ipOctet[4];
+        uint8_t gatewayOctet[4];
+        uint8_t subnetOctet[4];
+        for (size_t i = 0; i < 4; i++)
+        {
+            ipOctet[i] = (*_settingRegisters).get(28+i);
+            gatewayOctet[i] = (*_settingRegisters).get(32+i);
+            subnetOctet[i] = (*_settingRegisters).get(36+i);
+        }
+        
+        IPAddress ipAddr(ipOctet[0], ipOctet[1], ipOctet[2], ipOctet[3]);
+        IPAddress gatewayAddr(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
+        IPAddress subnetAddr(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
+            
+        preferences.putString("ip", ipAddr.toString());
+        preferences.putString("gateway", gatewayAddr.toString());
+        preferences.putString("subnet", subnetAddr.toString());
+        preferences.putUChar("server", (*_settingRegisters).get(40));
+        preferences.putUChar("mode", (*_settingRegisters).get(41));
+        (*_settingRegisters).set(42, 0);
+    }
+    preferences.end();
     return response;
 }
 
@@ -276,12 +336,73 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
         {
             // send increasing data values
             index = request.get(index, value);
-            (*_settingRegisters).set(value, addr);
+            (*_settingRegisters).set(addr, value);
             response.add(value);
             // Serial.println(value);
         }
         
     }
 
+    Preferences preferences;
+    preferences.begin("dev_params");
+
+    if ((*_settingRegisters).get(9))
+    {
+        preferences.putUShort("cell_diff", (*_settingRegisters).get(0));
+        preferences.putUShort("cell_diff_reconnect", (*_settingRegisters).get(1));
+        preferences.putUShort("cell_overvoltage", (*_settingRegisters).get(2));
+        preferences.putUShort("cell_undervoltage", (*_settingRegisters).get(3));
+        preferences.putUShort("cell_undervoltage_reconnect", (*_settingRegisters).get(4));
+        preferences.putInt("cell_overtemperature", (*_settingRegisters).getInt(5));
+        preferences.putInt("cell_undertemperature", (*_settingRegisters).getInt(7));
+        (*_settingRegisters).set(9, 0);
+    }
+
+    if ((*_settingRegisters).get(18))
+    {
+        String ssid;
+        
+        if ((*_settingRegisters).getString(10, ssid))
+        {
+            preferences.putString("ssid", ssid);
+        }
+        
+        (*_settingRegisters).set(18, 0);
+    }
+
+    if ((*_settingRegisters).get(27))
+    {
+        String pass;
+        if ((*_settingRegisters).getString(19, pass))
+        {
+            preferences.putString("pass", pass);
+        }
+        (*_settingRegisters).set(27, 0);
+    }
+
+    if ((*_settingRegisters).get(42))
+    {
+        uint8_t ipOctet[4];
+        uint8_t gatewayOctet[4];
+        uint8_t subnetOctet[4];
+        for (size_t i = 0; i < 4; i++)
+        {
+            ipOctet[i] = (*_settingRegisters).get(28+i);
+            gatewayOctet[i] = (*_settingRegisters).get(32+i);
+            subnetOctet[i] = (*_settingRegisters).get(36+i);
+        }
+        
+        IPAddress ipAddr(ipOctet[0], ipOctet[1], ipOctet[2], ipOctet[3]);
+        IPAddress gatewayAddr(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
+        IPAddress subnetAddr(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
+            
+        preferences.putString("ip", ipAddr.toString());
+        preferences.putString("gateway", gatewayAddr.toString());
+        preferences.putString("subnet", subnetAddr.toString());
+        preferences.putUChar("server", (*_settingRegisters).get(40));
+        preferences.putUChar("mode", (*_settingRegisters).get(41));
+        (*_settingRegisters).set(42, 0);
+    }
+    preferences.end();
     return response;
 }

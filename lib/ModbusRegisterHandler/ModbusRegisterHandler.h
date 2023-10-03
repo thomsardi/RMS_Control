@@ -6,6 +6,7 @@
 #include <ModbusMessage.h>
 #include <CoilData.h>
 #include <ModbusServerWiFi.h>
+#include <Preferences.h>
 
 union SystemStatus {
     struct Bits {
@@ -37,7 +38,7 @@ struct OtherInfo {
         return (this->data[i]);
     }
 
-    void set(uint16_t value, size_t index)
+    void set(size_t index, uint16_t value)
     {
         if (index >= this->elementSize) 
         {
@@ -51,8 +52,8 @@ struct OtherInfo {
 
 struct SettingRegisters {
     
-    uint16_t* data[9];
-    size_t elementSize = 9;
+    uint16_t* data[42];
+    size_t elementSize = 42;
 
     uint16_t get(int i) {
         // Serial.println(*params.value.fields.temp_max_hi);
@@ -65,7 +66,58 @@ struct SettingRegisters {
         // return *(this->params.value.data[i]);
     }
 
-    void set(uint16_t value, size_t index) 
+    int32_t getInt(int i) {
+        // Serial.println(*params.value.fields.temp_max_hi);
+        // Serial.println(*params.value.data[5]);
+        int32_t value;
+        if ( i+1 >= this->elementSize || i < 0)
+        {
+            return *(this->data[0]);
+        }
+        value = (*(this->data[0])) << 16 + (*(this->data[1]));
+        return value;
+        
+        // return *(this->params.value.data[i]);
+    }
+
+    bool getString(int i, String &s) {
+        // Serial.println(*params.value.fields.temp_max_hi);
+        // Serial.println(*params.value.data[5]);
+        int32_t value;
+        char buff[33];
+        for (size_t j = 0; j < 16; j++)
+        {
+            if ( i+j >= this->elementSize || i < 0)
+            {
+                return 0;
+            }
+            uint16_t value = get(i);
+            char first = value & 0xFF;
+            char second = value >> 8;
+            buff[j*2] = first;
+            if (first == '\0')
+            {
+                String result(buff);
+                s = result;
+                return 1;
+            }
+            buff[(j*2) + 1] = second;
+            if (second == '\0')
+            {
+                String result(buff);
+                s = result;
+                return 1;
+            }
+            
+        }
+        buff[33] = '\0';
+        String result(buff);
+        s = result;
+        return 1;
+        // return *(this->params.value.data[i]);
+    }
+
+    void set(size_t index, uint16_t value) 
     {
         if (index >= this->elementSize) 
         {
