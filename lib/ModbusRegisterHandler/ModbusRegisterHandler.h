@@ -52,8 +52,8 @@ struct OtherInfo {
 
 struct SettingRegisters {
     
-    uint16_t* data[42];
-    size_t elementSize = 42;
+    uint16_t* data[41];
+    size_t elementSize = 41;
 
     uint16_t get(int i) {
         // Serial.println(*params.value.fields.temp_max_hi);
