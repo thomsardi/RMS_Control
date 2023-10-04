@@ -192,6 +192,15 @@ OtherInfo otherInfo;
 SystemStatus systemStatus;
 MbusCoilData mbusCoilData;
 ModbusRegisterData modbusRegisterData;
+uint16_t saveParam;
+uint16_t ssidArr[16];
+uint16_t passArr[16];
+uint16_t saveNetwork;
+uint16_t ipOctet[4] = {192, 168, 2, 141};
+uint16_t gatewayOctet[4] = {192, 168, 2, 1};
+uint16_t subnetOctet[4] = {255, 255, 255, 0};
+uint16_t gServerType = 2;
+uint16_t gMode = 2;
 
 enum CommandType {
     VCELL = 0,
@@ -210,6 +219,17 @@ enum CommandType {
     SHUTDOWN = 13,
     WAKEUP = 14,
     RESTART = 15
+};
+
+namespace Network {
+    enum Server {
+        STATIC = 1,
+        DHCP = 2
+    };
+    enum MODE {
+        AP = 1,
+        STATION = 2
+    };
 };
 
 int dataComplete = 0;
@@ -264,16 +284,7 @@ String rackSn = "RACK-32-NA";
 
 uint8_t activeMode;
 
-namespace Network {
-    enum Server {
-        STATIC = 1,
-        DHCP = 2
-    };
-    enum MODE {
-        AP = 1,
-        STATION = 2
-    };
-};
+
 
 void setDefaultPreference()
 {
@@ -2433,30 +2444,57 @@ void setup()
     // nvs_flash_erase(); // erase the NVS partition and...
     // nvs_flash_init(); // initialize the NVS partition.
     // while(true);
+    Serial.begin(115200);
 
     Preferences preferences;
     preferences.begin("dev_params");
     uint8_t nFlag = preferences.getChar("n_flag");
     uint8_t pFlag = preferences.getChar("p_flag");
+    Serial.println("n_flag : " + String(nFlag));
+    Serial.println("p_flag : " + String(nFlag));
     preferences.end();
     if ((nFlag == 0) || (pFlag == 0))
     {
+        Serial.println("Initialized default and user value");
         setDefaultPreference();
         setUserPreference();
     }
+
+    preferences.begin("dev_params");
+    preferences.putChar("n_flag", 2);
+    preferences.putChar("p_flag", 2);
+    preferences.end();
 
     settingRegisters.link(&alarmParam.vcell_diff, 0);
     settingRegisters.link(&alarmParam.vcell_diff_reconnect, 1);
     settingRegisters.link(&alarmParam.vcell_max, 2);
     settingRegisters.link(&alarmParam.vcell_min, 3);
     settingRegisters.link(&alarmParam.vcell_reconnect, 4);
+    alarmParam.temp_max = 100000;
     uint16_t *ptr = reinterpret_cast<uint16_t*>(&alarmParam.temp_max);
-    settingRegisters.link(ptr+1, 5);
-    settingRegisters.link(ptr, 6);
+    settingRegisters.link(ptr+1, 5); // MSB
+    settingRegisters.link(ptr, 6); // LSB
     ptr = reinterpret_cast<uint16_t*>(&alarmParam.temp_min);
-    settingRegisters.link(ptr+1, 7);
-    settingRegisters.link(ptr, 8);
-
+    settingRegisters.link(ptr+1, 7); // MSB
+    settingRegisters.link(ptr, 8); // LSB
+    settingRegisters.link(&saveParam, 9);
+    for (size_t i = 0; i < 8; i++)
+    {
+        uint16_t *ptr = ssidArr;
+        settingRegisters.link(ptr+i, (10 + i));
+        ptr = passArr;
+        settingRegisters.link(ptr+i, (18 + i));   
+    }
+    for (size_t i = 0; i < 4; i++)
+    {
+        settingRegisters.link(&ipOctet[i], 26 + i);
+        settingRegisters.link(&gatewayOctet[i], 30 + i);
+        settingRegisters.link(&subnetOctet[i], 34 + i);
+    }
+    settingRegisters.link(&gServerType, 38);
+    settingRegisters.link(&gMode, 39);
+    settingRegisters.link(&saveNetwork, 40);
+    
     bool *boolPtr = reinterpret_cast<bool*>(&addressingCommand.exec);
     mbusCoilData.link(boolPtr, 0);
     boolPtr = reinterpret_cast<bool*>(&dataCollectionCommand.exec);
@@ -2506,7 +2544,7 @@ void setup()
     pinMode(battRelay, OUTPUT);
     pinMode(buzzer, OUTPUT);
     pinMode(internalLed, OUTPUT);
-    Serial.begin(115200);
+    
 
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
@@ -2595,6 +2633,12 @@ void setup()
         subnetAddr.fromString(preferences.getString("subnet"));
         serverType = preferences.getChar("server");
         mode = preferences.getChar("mode");
+
+        uint16_t temp[8];
+        size_t resultLength = SettingRegisters::stringToDoubleChar(networkSsid, temp, 8);
+        settingRegisters.setBulk(10, temp, resultLength); //SSID register
+        resultLength = SettingRegisters::stringToDoubleChar(pwd, temp, 8);
+        settingRegisters.setBulk(18, temp, resultLength);
         // Serial.println("=====User=====");
         // Serial.println("SSID : " + ssid);
         // Serial.println("Pass : " + password);
@@ -2800,7 +2844,7 @@ void setup()
 
     server.on("/get-network-info", HTTP_GET, [](AsyncWebServerRequest *request)
     {
-      // Serial.println("get-data");
+      Serial.println("Get connected network info");
       NetworkSetting s;
       switch (activeMode)
       {
@@ -2815,12 +2859,11 @@ void setup()
       default:
         break;
       }
-      // Serial.println(jsonParser.getNetworkInfo(s));
       request->send(200, "application/json", jsonManager.getNetworkInfo(s)); });
 
     server.on("/get-user-network-setting", HTTP_GET, [](AsyncWebServerRequest *request)
     {
-      // Serial.println("get-data");
+      Serial.println("Get user network setting info");
       NetworkSetting s;
       Preferences preferences;
       preferences.begin("dev_params");
@@ -2832,7 +2875,6 @@ void setup()
       s.mode = preferences.getChar("mode");
       s.server = preferences.getChar("server");
       preferences.end();
-      // Serial.println(jsonParser.getNetworkInfo(s));
       request->send(200, "application/json", jsonManager.getUserNetworkSetting(s)); });
 
     server.on("/post-test", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -3130,14 +3172,15 @@ void setup()
         preferences.begin("dev_params");
         if (setting.flag > 0)
         {
-            preferences.putString("ssid", setting.ssid);
-            preferences.putString("pass", setting.pass);
-            preferences.putString("ip", setting.ip);
-            preferences.putString("gateway", setting.gateway);
-            preferences.putString("subnet", setting.subnet);
-            preferences.putChar("server", setting.server);
-            preferences.putChar("mode", setting.mode);
-            preferences.putChar("set_flag", 2);
+            Serial.println("Set network");
+            // preferences.putString("ssid", setting.ssid);
+            // preferences.putString("pass", setting.pass);
+            // preferences.putString("ip", setting.ip);
+            // preferences.putString("gateway", setting.gateway);
+            // preferences.putString("subnet", setting.subnet);
+            // preferences.putChar("server", setting.server);
+            // preferences.putChar("mode", setting.mode);
+            // preferences.putChar("n_flag", 2);
             response.replace(":status:", String(setting.flag));
             request->send(200, "application/json", response);
         }

@@ -72,7 +72,7 @@ class JsonManager {
         int jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter);
         NetworkSetting parseNetworkSetting(JsonVariant &json);
 
-        private :
+    private :
         int getBit(int pos, int data);
         bool isNumber(const String &input);
 };

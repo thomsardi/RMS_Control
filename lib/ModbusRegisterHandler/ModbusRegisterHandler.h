@@ -25,150 +25,288 @@ union SystemStatus {
 
 struct OtherInfo {
 
-    uint16_t data[2];
+    public :
+        uint16_t data[2];
 
-    size_t elementSize = 2;
+        size_t elementSize = 2;
 
-    uint16_t get(int i) 
-    {
-        if ( i >= this->elementSize || i < 0)
+        uint16_t get(int i) 
         {
-            return (this->data[0]);
+            if ( i >= this->elementSize || i < 0)
+            {
+                return 0;
+            }
+            return (this->data[i]);
         }
-        return (this->data[i]);
-    }
 
-    void set(size_t index, uint16_t value)
-    {
-        if (index >= this->elementSize) 
+        void set(size_t index, uint16_t value)
         {
-            return;
+            if (index >= this->elementSize) 
+            {
+                return;
+            }
+            data[index] = value;
         }
-        data[index] = value;
-    }
 
+        int32_t getInt(int index) 
+        {
+            int32_t value;
+            if ( index+1 >= this->elementSize || index < 0)
+            {
+                return this->defaultValue;
+            }
+            value = (this->data[index] << 16) + (this->data[index+1]);
+            return value;
+        }
+
+        bool getBulk(int index, uint16_t *buff, size_t length) 
+        {
+            if (index + length >= this->elementSize || index < 0) 
+            {
+                return 0;
+            }
+
+            for (size_t i = 0; i < length; i++)
+            {
+                buff[i] = data[index + i];
+            }
+            return 1;
+        } 
+
+        bool setBulk(size_t index, uint16_t *buff, size_t length) 
+        {
+            if (index + length >= this->elementSize) 
+            {
+                return 0;
+            }
+
+            for (size_t i = 0; i < length; i++)
+            {
+                data[index + i] = buff[i];
+            }
+            return 1;
+        }
+
+    private :
+        uint16_t defaultValue = 0;
 
 };
 
 struct SettingRegisters {
-    
-    uint16_t* data[41];
-    size_t elementSize = 41;
+    public :
+        uint16_t* data[41];
+        size_t elementSize = 41;
 
-    uint16_t get(int i) {
-        // Serial.println(*params.value.fields.temp_max_hi);
-        // Serial.println(*params.value.data[5]);
-        if ( i >= this->elementSize || i < 0)
+        SettingRegisters()
         {
-            return *(this->data[0]);
+            for (size_t i = 0; i < this->elementSize; i++)
+            {
+                link(&(this->defaultValue), i);
+            }
         }
-        return *(this->data[i]);
-        // return *(this->params.value.data[i]);
-    }
 
-    int32_t getInt(int i) {
-        // Serial.println(*params.value.fields.temp_max_hi);
-        // Serial.println(*params.value.data[5]);
-        int32_t value;
-        if ( i+1 >= this->elementSize || i < 0)
-        {
-            return *(this->data[0]);
+        uint16_t get(int index) {
+            if ( index >= this->elementSize || index < 0)
+            {
+                return this->defaultValue;
+            }
+            return *(this->data[index]);
         }
-        value = (*(this->data[0])) << 16 + (*(this->data[1]));
-        return value;
-        
-        // return *(this->params.value.data[i]);
-    }
 
-    bool getString(int i, String &s) {
-        // Serial.println(*params.value.fields.temp_max_hi);
-        // Serial.println(*params.value.data[5]);
-        int32_t value;
-        char buff[33];
-        for (size_t j = 0; j < 16; j++)
-        {
-            if ( i+j >= this->elementSize || i < 0)
+        int32_t getInt(int index) {
+            int32_t value;
+            if ( index+1 >= this->elementSize || index < 0)
+            {
+                return this->defaultValue;
+            }
+            value = ((*(this->data[index])) << 16) + (*(this->data[index+1]));
+            return value;
+        }
+
+        bool getBulk(int index, uint16_t *buff, size_t length) {
+            if (index + length >= this->elementSize || index < 0) 
             {
                 return 0;
             }
-            uint16_t value = get(i);
-            char first = value & 0xFF;
-            char second = value >> 8;
-            buff[j*2] = first;
-            if (first == '\0')
+
+            for (size_t i = 0; i < length; i++)
             {
-                String result(buff);
-                s = result;
-                return 1;
+                buff[i] = *data[index + i];
             }
-            buff[(j*2) + 1] = second;
-            if (second == '\0')
-            {
-                String result(buff);
-                s = result;
-                return 1;
-            }
+            return 1;
+        } 
+
+        static size_t stringToDoubleChar(String s, uint16_t *doubleChar, size_t length)
+        {
+            size_t stringLength = s.length();
+            Serial.println("string length : " + String(stringLength));
+            size_t resultLength = 0;
+            bool isEven = false;
             
-        }
-        buff[33] = '\0';
-        String result(buff);
-        s = result;
-        return 1;
-        // return *(this->params.value.data[i]);
-    }
+            if (stringLength > length*2)
+            {
+                return resultLength;
+            }
 
-    void set(size_t index, uint16_t value) 
-    {
-        if (index >= this->elementSize) 
-        {
-            return;
-        }
-        *data[index] = value;
-    }
+            if (stringLength % 2 == 0)
+            {
+                Serial.println("Even");
+                isEven = true;
+                resultLength = stringLength / 2;
+            }
+            else
+            {
+                Serial.println("Odd");
+                resultLength = (stringLength / 2) + 1;
+            }
 
-    void link(uint16_t *sourceAddr, size_t index)
-    {
-        if (index >= this->elementSize)
-        {
-            return;
+            for (size_t i = 0; i < resultLength; i++)
+            {
+                if (isEven)
+                {
+                    doubleChar[i] = (s.charAt(i*2) << 8) + s.charAt((i*2) + 1);
+                }
+                else
+                {
+                    if (i == (resultLength - 1))
+                    {
+                        doubleChar[i] = (s.charAt(i*2) << 8) + '\0';
+                    }
+                    else
+                    {
+                        doubleChar[i] = (s.charAt(i*2) << 8) + s.charAt((i*2) + 1);
+                    }
+                }
+            }
+            return resultLength; 
         }
-        this->data[index] = sourceAddr;
-    }
+
+        bool set(size_t index, uint16_t value) 
+        {
+            if (index >= this->elementSize) 
+            {
+                return 0;
+            }
+            *data[index] = value;
+            return 1;
+        }
+
+        bool setBulk(size_t index, uint16_t *buff, size_t length) 
+        {
+            if (index + length >= this->elementSize) 
+            {
+                return 0;
+            }
+
+            for (size_t i = 0; i < length; i++)
+            {
+                *data[index + i] = buff[i];
+            }
+            return 1;
+        }
+
+        bool link(uint16_t *sourceAddr, size_t index)
+        {
+            if (index >= this->elementSize)
+            {
+                return 0;
+            }
+            this->data[index] = sourceAddr;
+            return 1;
+        }
+
+        void unlinkAll()
+        {
+            for (size_t i = 0; i < this->elementSize; i++)
+            {
+                link(&(this->defaultValue), i);
+            }
+        }
+
+    private :
+        uint16_t defaultValue = 0;
 };
 
 struct MbusCoilData {
-    bool *data[11];
-    size_t elementSize = 11;
+    public :
+        bool *data[11];
+        size_t elementSize = 11;
 
-    bool get(int i) {
-        // Serial.println(*params.value.fields.temp_max_hi);
-        // Serial.println(*params.value.data[5]);
-        if ( i >= this->elementSize || i < 0)
+        MbusCoilData()
         {
-            return *(this->data[0]);
+            for (size_t i = 0; i < this->elementSize; i++)
+            {
+                link(&(this->defaultValue), i);
+            }
         }
-        return *(this->data[i]);
-        // return *(this->params.value.data[i]);
-    }
 
-    bool set(bool value, size_t index) 
-    {
-        if (index >= this->elementSize) 
-        {
-            return 0;
+        bool get(int i) {
+            // Serial.println(*params.value.fields.temp_max_hi);
+            // Serial.println(*params.value.data[5]);
+            if ( i >= this->elementSize || i < 0)
+            {
+                return *(this->data[0]);
+            }
+            return *(this->data[i]);
+            // return *(this->params.value.data[i]);
         }
-        *data[index] = value;
-        return 1;
-    }
 
-    void link(bool *sourceAddr, size_t index)
-    {
-        if (index >= this->elementSize)
-        {
-            return;
+        bool getBulk(int index, bool *buff, size_t length) {
+            if (index + length >= this->elementSize || index < 0) 
+            {
+                return 0;
+            }
+
+            for (size_t i = 0; i < length; i++)
+            {
+                buff[i] = *data[index + i];
+            }
+            return 1;
         }
-        this->data[index] = sourceAddr;
-    } 
+
+        bool set(bool value, size_t index) 
+        {
+            if (index >= this->elementSize) 
+            {
+                return 0;
+            }
+            *data[index] = value;
+            return 1;
+        }
+
+        bool setBulk(size_t index, bool *buff, size_t length) 
+        {
+            if (index + length >= this->elementSize) 
+            {
+                return 0;
+            }
+
+            for (size_t i = 0; i < length; i++)
+            {
+                *data[index + i] = buff[i];
+            }
+            return 1;
+        }
+
+        void link(bool *sourceAddr, size_t index)
+        {
+            if (index >= this->elementSize)
+            {
+                return;
+            }
+            this->data[index] = sourceAddr;
+        } 
+
+        void unlinkAll()
+        {
+            for (size_t i = 0; i < this->elementSize; i++)
+            {
+                link(&(this->defaultValue), i);
+            }
+        }
+
+    private :
+        bool defaultValue = 0;
 
 };
 

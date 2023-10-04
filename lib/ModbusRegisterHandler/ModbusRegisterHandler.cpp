@@ -51,8 +51,6 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
     request.get(2, addr);        // read address from request
     request.get(4, words);       // read # of words from request
 
-    int startAddr = addr;
-    int endAddr = addr + words;
 
     int offset = 9000;
 
@@ -62,6 +60,9 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
         
         int maxAddr = _cellDataSize*_blockSize + _elementSize;
         int maxGroupAddr = group *_blockSize + _elementSize;
+
+        int startAddr = addr - (group*_blockSize);
+        int endAddr = (addr + words) - (group*_blockSize);
         
         // Address overflow?
         // Set up response
@@ -108,7 +109,7 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
     else 
     {      
         response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)(words * 2));
-        if ((addr + words) > (9000 + _otherInfo->elementSize)) {
+        if ((addr + words) > (offset + _otherInfo->elementSize) || addr < offset) {
             
             // Yes - send respective error response
             response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
@@ -116,8 +117,8 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
         }
         else
         {
-            uint8_t start = startAddr - offset;
-            uint8_t end = endAddr - offset;
+            uint8_t start = addr - offset;
+            uint8_t end = addr + words - offset;
             for (uint8_t i = start; i < end; ++i) //add all requested address
             {
                 // send increasing data values
@@ -249,39 +250,46 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
 
     if ((*_settingRegisters).get(9))
     {
-        preferences.putUShort("cdiff", (*_settingRegisters).get(0));
-        preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
-        preferences.putUShort("coverv", (*_settingRegisters).get(2));
-        preferences.putUShort("cunderv", (*_settingRegisters).get(3));
-        preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
-        preferences.putInt("covert", (*_settingRegisters).getInt(5));
-        preferences.putInt("cundert", (*_settingRegisters).getInt(7));
+        // preferences.putUShort("cdiff", (*_settingRegisters).get(0));
+        // preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
+        // preferences.putUShort("coverv", (*_settingRegisters).get(2));
+        // preferences.putUShort("cunderv", (*_settingRegisters).get(3));
+        // preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
+        // preferences.putInt("covert", (*_settingRegisters).getInt(5));
+        // preferences.putInt("cundert", (*_settingRegisters).getInt(7));
     }
 
-    if ((*_settingRegisters).get(18))
-    {
-        String ssid;
-        
-        if ((*_settingRegisters).getString(10, ssid))
+    if ((*_settingRegisters).get(40) == 1)
+    {        
+        uint16_t temp[8];
+        char c[16];
+        String result;
+        if ((*_settingRegisters).getBulk(10, temp, 8))
         {
-            preferences.putString("ssid", ssid);
+            
+            for (size_t i = 0; i < 8; i++)
+            {
+                c[i*2] = temp[i] >> 8;
+                c[(i*2) + 1] = temp[i] & 0xFF; 
+            }
+            result = String(c);
+            Serial.println(result);
+            // preferences.putString("ssid", result);
         }
-        
-        (*_settingRegisters).set(18, 0);
-    }
 
-    if ((*_settingRegisters).get(27))
-    {
-        String pass;
-        if ((*_settingRegisters).getString(19, pass))
+        if ((*_settingRegisters).getBulk(18, temp, 8))
         {
-            preferences.putString("pass", pass);
+            
+            for (size_t i = 0; i < 8; i++)
+            {
+                c[i*2] = temp[i] >> 8;
+                c[(i*2) + 1] = temp[i] & 0xFF; 
+            }
+            result = String(c);
+            Serial.println(result);
+            // preferences.putString("pass", result);
         }
-        (*_settingRegisters).set(27, 0);
-    }
 
-    if ((*_settingRegisters).get(42))
-    {
         uint8_t ipOctet[4];
         uint8_t gatewayOctet[4];
         uint8_t subnetOctet[4];
@@ -296,12 +304,13 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
         IPAddress gatewayAddr(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
         IPAddress subnetAddr(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
             
-        preferences.putString("ip", ipAddr.toString());
-        preferences.putString("gateway", gatewayAddr.toString());
-        preferences.putString("subnet", subnetAddr.toString());
-        preferences.putUChar("server", (*_settingRegisters).get(40));
-        preferences.putUChar("mode", (*_settingRegisters).get(41));
-        (*_settingRegisters).set(42, 0);
+        // preferences.putString("ip", ipAddr.toString());
+        // preferences.putString("gateway", gatewayAddr.toString());
+        // preferences.putString("subnet", subnetAddr.toString());
+        // preferences.putUChar("server", (*_settingRegisters).get(40));
+        // preferences.putUChar("mode", (*_settingRegisters).get(41));
+
+        (*_settingRegisters).set(40, 0);
     }
     preferences.end();
     return response;
@@ -348,28 +357,50 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
 
     if ((*_settingRegisters).get(9))
     {
-        preferences.putUShort("cdiff", (*_settingRegisters).get(0));
-        preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
-        preferences.putUShort("coverv", (*_settingRegisters).get(2));
-        preferences.putUShort("cunderv", (*_settingRegisters).get(3));
-        preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
-        preferences.putInt("covert", (*_settingRegisters).getInt(5));
-        preferences.putInt("cundert", (*_settingRegisters).getInt(7));
         (*_settingRegisters).set(9, 0);
-        preferences.putChar("p_flag", 2);
+        // preferences.putUShort("cdiff", (*_settingRegisters).get(0));
+        // preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
+        // preferences.putUShort("coverv", (*_settingRegisters).get(2));
+        // preferences.putUShort("cunderv", (*_settingRegisters).get(3));
+        // preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
+        // preferences.putInt("covert", (*_settingRegisters).getInt(5));
+        // preferences.putInt("cundert", (*_settingRegisters).getInt(7));
+
+        Serial.println("Overtemperature : " + String((*_settingRegisters).getInt(5)));
+        Serial.println("Undertemperature : " + String((*_settingRegisters).getInt(7)));
+
     }
 
-    if ((*_settingRegisters).get(40))
-    {
-        String ssid;
-        String pass;
-        if ((*_settingRegisters).getString(10, ssid))
+    if ((*_settingRegisters).get(40) == 1)
+    {        
+        (*_settingRegisters).set(40, 0);
+        uint16_t temp[8];
+        char c[16];
+        String result;
+        if ((*_settingRegisters).getBulk(10, temp, 8))
         {
-            preferences.putString("ssid", ssid);
+            
+            for (size_t i = 0; i < 8; i++)
+            {
+                c[i*2] = temp[i] >> 8;
+                c[(i*2) + 1] = temp[i] & 0xFF; 
+            }
+            result = String(c);
+            Serial.println(result);
+            // preferences.putString("ssid", result);
         }
-        if ((*_settingRegisters).getString(19, pass))
+
+        if ((*_settingRegisters).getBulk(18, temp, 8))
         {
-            preferences.putString("pass", pass);
+            
+            for (size_t i = 0; i < 8; i++)
+            {
+                c[i*2] = temp[i] >> 8;
+                c[(i*2) + 1] = temp[i] & 0xFF; 
+            }
+            result = String(c);
+            Serial.println(result);
+            // preferences.putString("pass", result);
         }
 
         uint8_t ipOctet[4];
@@ -377,22 +408,26 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
         uint8_t subnetOctet[4];
         for (size_t i = 0; i < 4; i++)
         {
-            ipOctet[i] = (*_settingRegisters).get(28+i);
-            gatewayOctet[i] = (*_settingRegisters).get(32+i);
-            subnetOctet[i] = (*_settingRegisters).get(36+i);
+            ipOctet[i] = (*_settingRegisters).get(26+i);
+            gatewayOctet[i] = (*_settingRegisters).get(30+i);
+            subnetOctet[i] = (*_settingRegisters).get(34+i);
         }
         
         IPAddress ipAddr(ipOctet[0], ipOctet[1], ipOctet[2], ipOctet[3]);
         IPAddress gatewayAddr(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
         IPAddress subnetAddr(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
             
-        preferences.putString("ip", ipAddr.toString());
-        preferences.putString("gateway", gatewayAddr.toString());
-        preferences.putString("subnet", subnetAddr.toString());
-        preferences.putUChar("server", (*_settingRegisters).get(40));
-        preferences.putUChar("mode", (*_settingRegisters).get(41));
-        preferences.putChar("n_flag", 2);
-        (*_settingRegisters).set(40, 0);
+        Serial.println("ip : " + ipAddr.toString());
+        Serial.println("gateway : " + gatewayAddr.toString());
+        Serial.println("subnet : " + subnetAddr.toString());
+        Serial.println("server : " + String((*_settingRegisters).get(38)));
+        Serial.println("mode : " + String((*_settingRegisters).get(39)));
+
+        // preferences.putString("ip", ipAddr.toString());
+        // preferences.putString("gateway", gatewayAddr.toString());
+        // preferences.putString("subnet", subnetAddr.toString());
+        // preferences.putUChar("server", (*_settingRegisters).get(38));
+        // preferences.putUChar("mode", (*_settingRegisters).get(39));
     }
     preferences.end();
     return response;
