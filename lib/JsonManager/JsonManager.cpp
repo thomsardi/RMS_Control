@@ -65,7 +65,7 @@ String JsonManager::buildSingleJsonData(const CellData &cellData)
     return result;
 }
 
-int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data, String &buffer)
+int JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, String &buffer)
 {
     int bid = 0;
     String value[12];
@@ -73,7 +73,7 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data,
     valueVec.setStorage(value);
     DynamicJsonDocument doc(12288);
     CellData *pointer;
-    doc["rack_sn"] = data.rackSn;
+    doc["rack_sn"] = packedData.rackSn;
     String input = request->getParam("bid")->value();
     if (!request->hasParam("bid"))
     {
@@ -87,12 +87,12 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data,
         {
             bid = temp.toInt();
             int index = bid - 1;
-            if (index < 0 || index >= data.size)
+            if (index < 0 || index >= packedData.size)
             {
                 continue;
             }
             JsonObject cms_0 = cms.createNestedObject();
-            pointer = data.p + index;
+            pointer = packedData.p + index;
             cms_0["msg_count"] = pointer->msgCount;
             cms_0["frame_name"] = pointer->frameName;
             cms_0["cms_code"] = pointer->cmsCodeName;
@@ -123,18 +123,18 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data,
     return 1;
 }
 
-String JsonManager::buildJsonData(AsyncWebServerRequest *request, const Data &data, const size_t numOfJsonObject) 
+String JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, const size_t numOfJsonObject) 
 {
     String result;
     int bid = 0;
     DynamicJsonDocument doc(12288); //for 8 object
     CellData *pointer;
-    doc["rack_sn"] = data.rackSn;
+    doc["rack_sn"] = packedData.rackSn;
     JsonArray cms = doc.createNestedArray("cms_data");
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_0 = cms.createNestedObject();
-        pointer = data.p + i;
+        pointer = packedData.p + i;
         cms_0["msg_count"] = pointer->msgCount;
         cms_0["frame_name"] = pointer->frameName;
         cms_0["cms_code"] = pointer->cmsCodeName;
@@ -260,9 +260,12 @@ String JsonManager::buildJsonBalancingStatus(const CellBalancingStatus cellBalan
 String JsonManager::buildJsonAlarmParameter(const AlarmParam& alarmParam)
 {
     String result;
-    StaticJsonDocument<64> doc;
+    StaticJsonDocument<256> doc;
+    doc["vcell_diff"] = alarmParam.vcell_diff;
+    doc["vcell_diff_reconnect"] = alarmParam.vcell_diff_reconnect;
     doc["vcell_max"] = alarmParam.vcell_max;
     doc["vcell_min"] = alarmParam.vcell_min;
+    doc["vcell_min_reconnect"] = alarmParam.vcell_reconnect;
     doc["temp_max"] = alarmParam.temp_max;
     doc["temp_min"] = alarmParam.temp_min;
     serializeJson(doc, result);

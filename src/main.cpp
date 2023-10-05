@@ -31,6 +31,7 @@
 #include <ModbusRegisterHandler.h>
 #include <Preferences.h>
 #include <nvs_flash.h>
+#include <Utilities.h>
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -158,7 +159,7 @@ OneButton startButton(32, true, true);
 
 ModbusServerTCPasync MBserver; 
 
-Data data;
+PackedData packedData;
 CellData cellData[8];
 int cellDataSize = sizeof(cellData) / sizeof(cellData[0]);
 RMSInfo rmsInfo;
@@ -193,8 +194,8 @@ SystemStatus systemStatus;
 MbusCoilData mbusCoilData;
 ModbusRegisterData modbusRegisterData;
 uint16_t saveParam;
-uint16_t ssidArr[16];
-uint16_t passArr[16];
+uint16_t ssidArr[8];
+uint16_t passArr[8];
 uint16_t saveNetwork;
 uint16_t ipOctet[4] = {192, 168, 2, 141};
 uint16_t gatewayOctet[4] = {192, 168, 2, 1};
@@ -284,8 +285,6 @@ String rackSn = "RACK-32-NA";
 
 uint8_t activeMode;
 
-
-
 void setDefaultPreference()
 {
     String mac = WiFi.macAddress();
@@ -299,7 +298,7 @@ void setDefaultPreference()
     */
     preferences.putString("d_ssid", defaultSsid);
     preferences.putString("d_pass", "esp32-default");
-    preferences.putString("d_ip", "192.168.1.100");
+    preferences.putString("d_ip", "192.168.1.2");
     preferences.putString("d_gateway", "192.168.1.1");
     preferences.putString("d_subnet", "255.255.255.0");
     preferences.putChar("d_server", Network::Server::STATIC);
@@ -331,8 +330,8 @@ void setUserPreference()
     */
     preferences.putString("ssid", "RnD_Sundaya");
     preferences.putString("pass", "sundaya22");
-    preferences.putString("ip", "192.168.2.162");
-    preferences.putString("gateway", "192.168.2.1");
+    preferences.putString("ip", "192.168.1.2");
+    preferences.putString("gateway", "192.168.1.1");
     preferences.putString("subnet", "255.255.255.0");
     preferences.putChar("server", Network::Server::DHCP);
     preferences.putChar("mode", Network::MODE::STATION);
@@ -403,9 +402,9 @@ void reInitCellData()
 
 void declareStruct()
 {
-    data.rackSn = rackSn;
-    data.p = cellData;
-    data.size = cellDataSize;
+    packedData.rackSn = rackSn;
+    packedData.p = cellData;
+    packedData.size = cellDataSize;
     for (size_t i = 0; i < cellDataSize; i++)
     {
         cellData[i].frameName = "FRAME-32-NA";
@@ -456,14 +455,6 @@ void declareStruct()
         //     cellBalancingStatus[i].cball[j] = -1;
         // }
     }
-
-    alarmParam.vcell_diff = 300;
-    alarmParam.vcell_diff_reconnect = 250;
-    alarmParam.vcell_max = 3700;
-    alarmParam.vcell_min = 3000;
-    alarmParam.vcell_reconnect = 3200;
-    alarmParam.temp_max = 80000;
-    alarmParam.temp_min = 20000;
 
     // for (size_t i = 0; i < 45; i++)
     // {
@@ -2448,6 +2439,8 @@ void setup()
 
     Preferences preferences;
     preferences.begin("dev_params");
+    preferences.putChar("n_flag", 0);
+    preferences.putChar("p_flag", 0);
     uint8_t nFlag = preferences.getChar("n_flag");
     uint8_t pFlag = preferences.getChar("p_flag");
     Serial.println("n_flag : " + String(nFlag));
@@ -2461,8 +2454,8 @@ void setup()
     }
 
     preferences.begin("dev_params");
-    preferences.putChar("n_flag", 2);
-    preferences.putChar("p_flag", 2);
+    // preferences.putChar("n_flag", 2);
+    // preferences.putChar("p_flag", 2);
     preferences.end();
 
     settingRegisters.link(&alarmParam.vcell_diff, 0);
@@ -2518,8 +2511,7 @@ void setup()
     boolPtr = reinterpret_cast<bool*>(&testDataCollection.exec);
     mbusCoilData.link(boolPtr, 10);
 
-    modbusRegisterData.inputRegister.cellData = cellData;
-    modbusRegisterData.inputRegister.cellDataSize = cellDataSize;
+    modbusRegisterData.inputRegister.packedData = &packedData;
     modbusRegisterData.inputRegister.otherInfo = &otherInfo;
     modbusRegisterData.holdingRegisters.settingRegisters = &settingRegisters;
     modbusRegisterData.mbusCoil.mbusCoilData = &mbusCoilData;
@@ -2564,10 +2556,68 @@ void setup()
     uint8_t mode;
     uint8_t serverType;
 
+    /**
+     * Copy value from flash memory into variable
+    */
+    preferences.begin("dev_params");
+    networkSsid = preferences.getString("ssid");
+    pwd = preferences.getString("pass");
+    ipAddr.fromString(preferences.getString("ip"));
+    gatewayAddr.fromString(preferences.getString("gateway"));
+    subnetAddr.fromString(preferences.getString("subnet"));
+    serverType = preferences.getChar("server");
+    mode = preferences.getChar("mode");
+
+    uint16_t temp[8];
+    size_t resultLength = Utilities::toDoubleChar(networkSsid, ssidArr, 8);
+    resultLength = Utilities::toDoubleChar(pwd, passArr, 8);
+
+    for (size_t i = 0; i < 4; i++)
+    {
+        ipOctet[i] = ipAddr[i];
+        gatewayOctet[i] = gatewayAddr[i];
+        subnetOctet[i] = subnetAddr[i];
+    }
+
+    gServerType = serverType;
+    gMode = mode;
+    preferences.end();
+    delay(50);
+    
     preferences.begin("dev_params");
 
-    if (preferences.getChar("n_flag") == 1)
+    /**
+     * check parameter flag set
+    */
+    if (preferences.getChar("p_flag") == 1) // load from default setting
     {
+        Serial.println("Load default parameter setting");
+        alarmParam.vcell_diff = preferences.getUShort("d_cdiff");
+        alarmParam.vcell_diff_reconnect = preferences.getUShort("d_cdiff_r");
+        alarmParam.vcell_max = preferences.getUShort("d_coverv");
+        alarmParam.vcell_min = preferences.getUShort("d_cunderv");
+        alarmParam.vcell_reconnect = preferences.getUShort("d_cunderv_r");
+        alarmParam.temp_max = preferences.getInt("d_covert");
+        alarmParam.temp_min = preferences.getInt("d_cundert");
+    }
+    else // load from user setting
+    {
+        Serial.println("Load user parameter setting");
+        alarmParam.vcell_diff = preferences.getUShort("cdiff");
+        alarmParam.vcell_diff_reconnect = preferences.getUShort("cdiff_r");
+        alarmParam.vcell_max = preferences.getUShort("coverv");
+        alarmParam.vcell_min = preferences.getUShort("cunderv");
+        alarmParam.vcell_reconnect = preferences.getUShort("cunderv_r");
+        alarmParam.temp_max = preferences.getInt("covert");
+        alarmParam.temp_min = preferences.getInt("cundert");
+    }    
+
+    /**
+     * Check network flag set
+    */
+    if (preferences.getChar("n_flag") == 1) // load from default setting
+    {
+        Serial.println("Load default network setting");
         networkSsid = preferences.getString("d_ssid");
         pwd = preferences.getString("d_pass");
         ipAddr.fromString(preferences.getString("d_ip"));
@@ -2584,11 +2634,11 @@ void setup()
         switch (mode)
         {
             case Network::MODE::AP :
-                // Serial.println("Default AP");
+                Serial.println("Default AP");
                 WiFi.mode(WIFI_AP);
             break;
             case Network::MODE::STATION :
-                // Serial.println("Default Station");
+                Serial.println("Default Station");
                 WiFi.mode(WIFI_STA);
             break;
             default:
@@ -2611,7 +2661,7 @@ void setup()
             {
                 if (!WiFi.softAPConfig(ipAddr, gatewayAddr, subnetAddr))
                 {
-                Serial.println("AP Failed to configure");
+                    Serial.println("AP Failed to configure");
                 }
             }
             break;
@@ -2624,8 +2674,9 @@ void setup()
             break;
         }
     }
-    else
+    else // load from user setting
     {
+        Serial.println("Load user network setting");
         networkSsid = preferences.getString("ssid");
         pwd = preferences.getString("pass");
         ipAddr.fromString(preferences.getString("ip"));
@@ -2634,11 +2685,7 @@ void setup()
         serverType = preferences.getChar("server");
         mode = preferences.getChar("mode");
 
-        uint16_t temp[8];
-        size_t resultLength = SettingRegisters::stringToDoubleChar(networkSsid, temp, 8);
-        settingRegisters.setBulk(10, temp, resultLength); //SSID register
-        resultLength = SettingRegisters::stringToDoubleChar(pwd, temp, 8);
-        settingRegisters.setBulk(18, temp, resultLength);
+        // settingRegisters.setBulk(18, temp, resultLength);
         // Serial.println("=====User=====");
         // Serial.println("SSID : " + ssid);
         // Serial.println("Pass : " + password);
@@ -2676,7 +2723,9 @@ void setup()
         }
     }
     
-    preferences.end();
+    preferences.end();  
+    delay(50);
+    // Serial.println("end of load network setting");  
 
     #ifdef DEBUG_STATIC    
         if (!WiFi.config(local_ip, gateway, subnet))
@@ -2690,7 +2739,7 @@ void setup()
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     Serial.print("Try connecting to ");
-    Serial.println(networkSsid);
+    Serial.println(networkSsid); 
 
     int timeout = 0;
     if (mode == Network::MODE::STATION)
@@ -2710,7 +2759,7 @@ void setup()
     }
     else
     {
-        WiFi.softAP(ssid,password);
+        WiFi.softAP(networkSsid, pwd);
         Serial.println("AP Connected");
         Serial.print("SSID : ");
         Serial.println(networkSsid);
@@ -2743,6 +2792,7 @@ void setup()
     }
 
     activeMode = mode;
+    
 
     timerAlarmEnable(myTimer);
     delay(100); //wait a bit to stabilize the voltage and current consumption
@@ -2779,15 +2829,15 @@ void setup()
     {
         size_t cellDataArrSize = sizeof(cellData) / sizeof(cellData[0]);
         // String jsonOutput = jsonManager.buildJsonData(request, cellData, cellDataArrSize);
-        data.rackSn = rackSn;
-        String jsonOutput = jsonManager.buildJsonData(request, data, cellDataArrSize);
+        packedData.rackSn = rackSn;
+        String jsonOutput = jsonManager.buildJsonData(request, packedData, cellDataArrSize);
         request->send(200, "application/json", jsonOutput); });
 
     server.on("/get-data", HTTP_GET, [](AsyncWebServerRequest *request)
     {
         String buffer;
-        data.rackSn = rackSn;
-        if(jsonManager.buildJsonData(request, data, buffer))
+        packedData.rackSn = rackSn;
+        if(jsonManager.buildJsonData(request, packedData, buffer))
         {
             request->send(200, "application/json", buffer);
         }
@@ -2866,14 +2916,41 @@ void setup()
       Serial.println("Get user network setting info");
       NetworkSetting s;
       Preferences preferences;
+      
+      char c[32];
+      for (size_t i = 0; i < 8; i++)
+      {
+        c[i*2] = ssidArr[i] >> 8;
+        c[i*2 + 1] = ssidArr[i] & 0xFF;
+      }
+      s.ssid = String(c);
+
+      for (size_t i = 0; i < 8; i++)
+      {
+        c[i*2] = passArr[i] >> 8;
+        c[i*2 + 1] = passArr[i] & 0xFF;
+      }
+      s.pass = String(c);
+
+      IPAddress ip(ipOctet[0], ipOctet[1], ipOctet[2], ipOctet[3]);
+      IPAddress gateway(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
+      IPAddress subnet(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
+
+      s.ip = ip.toString();
+      s.gateway = gateway.toString();
+      s.subnet = subnet.toString();
+      s.server = gServerType;
+      s.mode = gMode;
+      
+      
       preferences.begin("dev_params");
-      s.ssid = preferences.getString("ssid");
-      s.pass = preferences.getString("pass");
-      s.ip = preferences.getString("ip");
-      s.gateway = preferences.getString("gateway");
-      s.subnet = preferences.getString("subnet");
-      s.mode = preferences.getChar("mode");
-      s.server = preferences.getChar("server");
+    //   s.ssid = preferences.getString("ssid");
+    //   s.pass = preferences.getString("pass");
+    //   s.ip = preferences.getString("ip");
+    //   s.gateway = preferences.getString("gateway");
+    //   s.subnet = preferences.getString("subnet");
+    //   s.mode = preferences.getChar("mode");
+    //   s.server = preferences.getChar("server");
       preferences.end();
       request->send(200, "application/json", jsonManager.getUserNetworkSetting(s)); });
 
@@ -2960,8 +3037,29 @@ void setup()
         )";
         String input = json.as<String>();
         int status = jsonManager.jsonAlarmParameterParser(input.c_str(), alarmParam);
-        response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+
+        if (status > 0)
+        {
+            Preferences preferences;
+            preferences.begin("dev_params");
+            Serial.println("Set parameter");
+            
+            preferences.putUShort("cdiff", alarmParam.vcell_diff);
+            preferences.putUShort("cdiff_r", alarmParam.vcell_diff_reconnect);
+            preferences.putUShort("coverv", alarmParam.vcell_max);
+            preferences.putUShort("cunderv", alarmParam.vcell_min);
+            preferences.putUShort("cunderv_r", alarmParam.vcell_reconnect);
+            preferences.putInt("covert", alarmParam.temp_max);
+            preferences.putInt("cundert", alarmParam.temp_min);
+            preferences.putChar("p_flag", 2); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
+
+            response.replace(":status:", String(status));
+            request->send(200, "application/json", response);    
+        }
+        else {
+            request->send(400);
+        } });
+        
 
     AsyncCallbackJsonWebHandler *setHardwareAlarmHandler = new AsyncCallbackJsonWebHandler("/set-hardware-alarm", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3173,14 +3271,36 @@ void setup()
         if (setting.flag > 0)
         {
             Serial.println("Set network");
-            // preferences.putString("ssid", setting.ssid);
-            // preferences.putString("pass", setting.pass);
-            // preferences.putString("ip", setting.ip);
-            // preferences.putString("gateway", setting.gateway);
-            // preferences.putString("subnet", setting.subnet);
-            // preferences.putChar("server", setting.server);
-            // preferences.putChar("mode", setting.mode);
-            // preferences.putChar("n_flag", 2);
+            size_t resultLength = Utilities::toDoubleChar(setting.ssid, ssidArr, 8);
+            // Serial.println(resultLength);
+            resultLength = Utilities::toDoubleChar(setting.pass, passArr, 8);
+            // Serial.println(resultLength);
+            IPAddress ip;
+            IPAddress gateway;
+            IPAddress subnet;
+            ip.fromString(setting.ip);
+            gateway.fromString(setting.gateway);
+            subnet.fromString(setting.subnet);
+            for (size_t i = 0; i < 4; i++)
+            {
+                ipOctet[i] = ip[i];
+                // Serial.println(ipOctet[i]);
+                gatewayOctet[i] = gateway[i];
+                // Serial.println(gatewayOctet[i]);
+                subnetOctet[i] = subnet[i];
+                // Serial.println(subnetOctet[i]);
+            }
+            gServerType = setting.server;
+            gMode = setting.mode;
+            
+            preferences.putString("ssid", setting.ssid);
+            preferences.putString("pass", setting.pass);
+            preferences.putString("ip", setting.ip);
+            preferences.putString("gateway", setting.gateway);
+            preferences.putString("subnet", setting.subnet);
+            preferences.putChar("server", setting.server);
+            preferences.putChar("mode", setting.mode);
+            preferences.putChar("n_flag", 2);
             response.replace(":status:", String(setting.flag));
             request->send(200, "application/json", response);
         }
@@ -3220,8 +3340,6 @@ void setup()
     MBserver.registerWorker(1, WRITE_HOLD_REGISTER, &FC06);      // FC=06 for serverID=1
     MBserver.registerWorker(1, WRITE_MULT_REGISTERS, &FC16);    // FC=16 for serverID=1
 
-    MBserver.start(502, 10, 20000);
-
     // AsyncElegantOTA.begin(&server); // Start ElegantOTA
     server.begin();
     resetUpdater();
@@ -3237,6 +3355,7 @@ void setup()
     //     Serial.println("Data normal list : " + String(isDataNormalList[i]));
     // }
     delay(2000); //wait for CMS to boot
+    MBserver.start(502, 10, 20000);
     systemStatus.bits.ready = 1;
     testDataCollection.exec = 1;
 }
@@ -3252,13 +3371,15 @@ void loop()
     // Serial.println("Current Group : " + String(ledData.currentGroup));
     // Serial.println("Current String : " + String(ledData.currentString));
     // Serial.println("Address List Size : " + String(addressList.size()));
-    
-    if ((WiFi.status() != WL_CONNECTED) && (millis() - lastReconnectMillis >= reconnectInterval)) {
-        digitalWrite(internalLed, LOW);
-        Serial.println("Reconnecting to WiFi...");
-        WiFi.disconnect();
-        WiFi.reconnect();
-        lastReconnectMillis = millis();
+    if (activeMode == Network::MODE::STATION)
+    {
+        if ((WiFi.status() != WL_CONNECTED) && (millis() - lastReconnectMillis >= reconnectInterval)) {
+            digitalWrite(internalLed, LOW);
+            Serial.println("Reconnecting to WiFi...");
+            WiFi.disconnect();
+            WiFi.reconnect();
+            lastReconnectMillis = millis();
+        }
     }
 
     if (manualOverride)
@@ -3381,7 +3502,7 @@ void loop()
             Serial.println("Data is Complete.. Pushing to Database");
             msgCount[i]++;
             cellData[i].msgCount = msgCount[i];
-            data.rackSn = rackSn;
+            packedData.rackSn = rackSn;
             // systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
             #ifdef AUTO_POST
                 String phpName = "update.php";

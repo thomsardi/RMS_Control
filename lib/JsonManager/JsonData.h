@@ -36,7 +36,7 @@ struct CellData
     // int door = 0;
 };
 
-struct Data {
+struct PackedData {
     String rackSn = "";
     CellData *p;
     int size;

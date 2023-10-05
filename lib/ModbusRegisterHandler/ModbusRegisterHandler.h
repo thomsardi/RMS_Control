@@ -7,6 +7,7 @@
 #include <CoilData.h>
 #include <ModbusServerWiFi.h>
 #include <Preferences.h>
+#include <Utilities.h>
 
 union SystemStatus {
     struct Bits {
@@ -26,9 +27,9 @@ union SystemStatus {
 struct OtherInfo {
 
     public :
-        uint16_t data[2];
+        uint16_t data[10];
 
-        size_t elementSize = 2;
+        size_t elementSize = 10;
 
         uint16_t get(int i) 
         {
@@ -135,51 +136,6 @@ struct SettingRegisters {
             }
             return 1;
         } 
-
-        static size_t stringToDoubleChar(String s, uint16_t *doubleChar, size_t length)
-        {
-            size_t stringLength = s.length();
-            Serial.println("string length : " + String(stringLength));
-            size_t resultLength = 0;
-            bool isEven = false;
-            
-            if (stringLength > length*2)
-            {
-                return resultLength;
-            }
-
-            if (stringLength % 2 == 0)
-            {
-                Serial.println("Even");
-                isEven = true;
-                resultLength = stringLength / 2;
-            }
-            else
-            {
-                Serial.println("Odd");
-                resultLength = (stringLength / 2) + 1;
-            }
-
-            for (size_t i = 0; i < resultLength; i++)
-            {
-                if (isEven)
-                {
-                    doubleChar[i] = (s.charAt(i*2) << 8) + s.charAt((i*2) + 1);
-                }
-                else
-                {
-                    if (i == (resultLength - 1))
-                    {
-                        doubleChar[i] = (s.charAt(i*2) << 8) + '\0';
-                    }
-                    else
-                    {
-                        doubleChar[i] = (s.charAt(i*2) << 8) + s.charAt((i*2) + 1);
-                    }
-                }
-            }
-            return resultLength; 
-        }
 
         bool set(size_t index, uint16_t value) 
         {
@@ -313,8 +269,7 @@ struct MbusCoilData {
 struct ModbusRegisterData
 {
     struct InputRegisters {
-        CellData* cellData = nullptr;
-        size_t cellDataSize = 0;
+        PackedData* packedData;
         OtherInfo* otherInfo;
     } inputRegister;
 
@@ -328,7 +283,7 @@ struct ModbusRegisterData
 };
 class ModbusRegisterHandler {
     public :
-        ModbusRegisterHandler(const ModbusRegisterData &modbusRegisterData);
+        ModbusRegisterHandler(ModbusRegisterData &modbusRegisterData);
         ModbusMessage handleReadCoils(const ModbusMessage &request);
         ModbusMessage handleReadInputRegisters(const ModbusMessage &request);
         ModbusMessage handleReadHoldingRegisters(const ModbusMessage &request);
@@ -341,9 +296,9 @@ class ModbusRegisterHandler {
         OtherInfo *_otherInfo;
         MbusCoilData *_mbusCoilData;
         SettingRegisters *_settingRegisters;
-        uint16_t _memory[70];
+        ModbusRegisterData *_modbusRegisterData;
         int _blockSize = 1000;
-        int _elementSize = 0;
+        int _elementSize = 112;
 };
 
 #endif

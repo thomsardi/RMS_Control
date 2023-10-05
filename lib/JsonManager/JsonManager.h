@@ -34,8 +34,8 @@ class JsonManager {
         //GET method (read the data)
         int processSingleCmsDataRequest(AsyncWebServerRequest *request); //extract get parameter, return bid index
         String buildSingleJsonData(const CellData &cellData);
-        int buildJsonData(AsyncWebServerRequest *request, const Data &data, String &buffer); //get variable cms data
-        String buildJsonData(AsyncWebServerRequest *request, const Data &data, const size_t numOfJsonObject = 8); // get 8 cms data
+        int buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, String &buffer); //get variable cms data
+        String buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, const size_t numOfJsonObject = 8); // get 8 cms data
         String buildJsonRMSInfo(const RMSInfo& rmsInfo); // get rms info
         String buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonObject = 8); // get 8 cms info
         String buildJsonBalancingStatus(const CellBalancingStatus cellBalancingStatus[], size_t numOfJsonObject); //get 8 cms balancing status

@@ -1,13 +1,13 @@
 #include "ModbusRegisterHandler.h"
 
-ModbusRegisterHandler::ModbusRegisterHandler(const ModbusRegisterData &modbusRegisterData)
+ModbusRegisterHandler::ModbusRegisterHandler(ModbusRegisterData &modbusRegisterData)
 {
-    _cellDataptr = modbusRegisterData.inputRegister.cellData;
-    _cellDataSize = modbusRegisterData.inputRegister.cellDataSize;
+    _cellDataptr = modbusRegisterData.inputRegister.packedData->p;
+    _cellDataSize = modbusRegisterData.inputRegister.packedData->size;
     _otherInfo = modbusRegisterData.inputRegister.otherInfo;
     _settingRegisters = modbusRegisterData.holdingRegisters.settingRegisters;
     _mbusCoilData = modbusRegisterData.mbusCoil.mbusCoilData;
-    _elementSize = sizeof(_memory) / sizeof(_memory[0]);
+    _modbusRegisterData = &modbusRegisterData;
 }
 
 ModbusMessage ModbusRegisterHandler::handleReadCoils(const ModbusMessage &request)
@@ -54,7 +54,7 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
 
     int offset = 9000;
 
-    if (addr != 9000) 
+    if (addr < 9000) 
     {
         int group = addr / _blockSize;
         
@@ -96,6 +96,44 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
                 memory[idx+1] = _cellDataptr[group].pack[i] & 0xffff;
             }
             memory[69] = _cellDataptr[group].packStatus.val;
+            memory[70] = _cellDataptr[group].bid;
+            memory[71] = _cellDataptr[group].msgCount;
+            uint16_t temp[8];
+            if (Utilities::toDoubleChar(_cellDataptr[group].frameName, temp, 8) > 0)
+            {
+                for (size_t i = 0; i < 8; i++)
+                {
+                    memory[72+i] = temp[i];
+                }
+            }
+            if (Utilities::toDoubleChar(_cellDataptr[group].cmsCodeName, temp, 8) > 0)
+            {
+                for (size_t i = 0; i < 8; i++)
+                {
+                    memory[80+i] = temp[i];
+                }
+            }
+            if (Utilities::toDoubleChar(_cellDataptr[group].baseCodeName, temp, 8) > 0)
+            {
+                for (size_t i = 0; i < 8; i++)
+                {
+                    memory[88+i] = temp[i];
+                }
+            }
+            if (Utilities::toDoubleChar(_cellDataptr[group].mcuCodeName, temp, 8) > 0)
+            {
+                for (size_t i = 0; i < 8; i++)
+                {
+                    memory[96+i] = temp[i];
+                }
+            }
+            if (Utilities::toDoubleChar(_cellDataptr[group].siteLocation, temp, 8) > 0)
+            {
+                for (size_t i = 0; i < 8; i++)
+                {
+                    memory[104+i] = temp[i];
+                }
+            }
 
             for (uint8_t i = startAddr; i < endAddr; ++i) //add all requested address
             {
@@ -119,6 +157,16 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
         {
             uint8_t start = addr - offset;
             uint8_t end = addr + words - offset;
+
+            uint16_t buff[8];
+            if (Utilities::toDoubleChar(_modbusRegisterData->inputRegister.packedData->rackSn, buff, 8))
+            {
+                for (size_t i = 0; i < 8; i++)
+                {
+                    (*_otherInfo).set(2+i, buff[i]);
+                }
+            }
+
             for (uint8_t i = start; i < end; ++i) //add all requested address
             {
                 // send increasing data values
@@ -217,8 +265,6 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
     int startAddr = addr;
     int endAddr = addr + words;
 
-    Serial.println(addr);
-    Serial.println(words);
     // Address overflow?
     // Set up response
     response.add(request.getServerID(), request.getFunctionCode());
@@ -358,17 +404,13 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
     if ((*_settingRegisters).get(9))
     {
         (*_settingRegisters).set(9, 0);
-        // preferences.putUShort("cdiff", (*_settingRegisters).get(0));
-        // preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
-        // preferences.putUShort("coverv", (*_settingRegisters).get(2));
-        // preferences.putUShort("cunderv", (*_settingRegisters).get(3));
-        // preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
-        // preferences.putInt("covert", (*_settingRegisters).getInt(5));
-        // preferences.putInt("cundert", (*_settingRegisters).getInt(7));
-
-        Serial.println("Overtemperature : " + String((*_settingRegisters).getInt(5)));
-        Serial.println("Undertemperature : " + String((*_settingRegisters).getInt(7)));
-
+        preferences.putUShort("cdiff", (*_settingRegisters).get(0));
+        preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
+        preferences.putUShort("coverv", (*_settingRegisters).get(2));
+        preferences.putUShort("cunderv", (*_settingRegisters).get(3));
+        preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
+        preferences.putInt("covert", (*_settingRegisters).getInt(5));
+        preferences.putInt("cundert", (*_settingRegisters).getInt(7));
     }
 
     if ((*_settingRegisters).get(40) == 1)
@@ -386,8 +428,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
                 c[(i*2) + 1] = temp[i] & 0xFF; 
             }
             result = String(c);
-            Serial.println(result);
-            // preferences.putString("ssid", result);
+            // Serial.println(result);
+            preferences.putString("ssid", result);
         }
 
         if ((*_settingRegisters).getBulk(18, temp, 8))
@@ -399,8 +441,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
                 c[(i*2) + 1] = temp[i] & 0xFF; 
             }
             result = String(c);
-            Serial.println(result);
-            // preferences.putString("pass", result);
+            // Serial.println(result);
+            preferences.putString("pass", result);
         }
 
         uint8_t ipOctet[4];
@@ -417,17 +459,17 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
         IPAddress gatewayAddr(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
         IPAddress subnetAddr(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
             
-        Serial.println("ip : " + ipAddr.toString());
-        Serial.println("gateway : " + gatewayAddr.toString());
-        Serial.println("subnet : " + subnetAddr.toString());
-        Serial.println("server : " + String((*_settingRegisters).get(38)));
-        Serial.println("mode : " + String((*_settingRegisters).get(39)));
+        // Serial.println("ip : " + ipAddr.toString());
+        // Serial.println("gateway : " + gatewayAddr.toString());
+        // Serial.println("subnet : " + subnetAddr.toString());
+        // Serial.println("server : " + String((*_settingRegisters).get(38)));
+        // Serial.println("mode : " + String((*_settingRegisters).get(39)));
 
-        // preferences.putString("ip", ipAddr.toString());
-        // preferences.putString("gateway", gatewayAddr.toString());
-        // preferences.putString("subnet", subnetAddr.toString());
-        // preferences.putUChar("server", (*_settingRegisters).get(38));
-        // preferences.putUChar("mode", (*_settingRegisters).get(39));
+        preferences.putString("ip", ipAddr.toString());
+        preferences.putString("gateway", gatewayAddr.toString());
+        preferences.putString("subnet", subnetAddr.toString());
+        preferences.putUChar("server", (*_settingRegisters).get(38));
+        preferences.putUChar("mode", (*_settingRegisters).get(39));
     }
     preferences.end();
     return response;
