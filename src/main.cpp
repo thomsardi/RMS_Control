@@ -84,20 +84,20 @@
     #define HOST_NAME "RMS-Rnd-Room"
 #endif
 
-int cell[45];
-int32_t temp[9];
-int32_t vpack[4]; // index 0 is total vpack
+// int cell[45];
+// int32_t temp[9];
+// int32_t vpack[4]; // index 0 is total vpack
 int battRelay = 23;
 int buzzer = 26;
 
 int internalLed = 2;
 
 int const numOfShiftRegister = 8;
-int address = 1; //BID start from 1
+// int address = 1; //BID start from 1
 
-int serialData = 12;
-int shcp = 14;
-int stcp = 13;
+// int serialData = 12;
+// int shcp = 14;
+// int stcp = 13;
 
 int lcdColumns = 16;
 int lcdRows = 2;
@@ -163,10 +163,8 @@ PackedData packedData;
 CellData cellData[8];
 int cellDataSize = sizeof(cellData) / sizeof(cellData[0]);
 RMSInfo rmsInfo;
-CMSInfo cmsInfo[8];
 AlarmParam alarmParam;
 HardwareAlarm hardwareAlarm;
-CellAlarm cellAlarm[45];
 CellBalancingCommand cellBalancingCommand;
 AddressingCommand addressingCommand;
 AlarmCommand alarmCommand;
@@ -235,7 +233,7 @@ namespace Network {
 
 int dataComplete = 0;
 
-uint16_t msgCount[16];
+// uint16_t msgCount[16];
 int addressListStorage[12];
 Vector<int> addressList(addressListStorage);
 int8_t isDataNormalList[12];
@@ -243,7 +241,6 @@ int8_t isDataNormalList[12];
 bool balancingCommand = false;
 bool commandCompleted = false;
 bool responseCompleted = false;
-bool isFirstRun = true;
 bool sendCommand = true;
 bool isGotCMSInfo = false;
 bool lastStateDataCollection = false;
@@ -273,7 +270,6 @@ int lastDeviceAddress = 16;
 int cmsInfoRetry = 0;
 unsigned long lastTime = 0;
 unsigned long lastReceivedSerialData = 0;
-unsigned long lastProcessResponse = 0;
 unsigned long lastReconnectMillis = 0;
 int reconnectInterval = 5000;
 String commandString;
@@ -352,24 +348,6 @@ void setUserPreference()
     preferences.end();
 }
 
-template <typename T>
-void fillArray(T a[], size_t len, T value)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        a[i] = value;
-    }
-}
-
-template <typename T>
-void fillArrayRandom(T a[], size_t len, T min, T max)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        a[i] = random(min, max);
-    }
-}
-
 void reInitCellData()
 {
     for (size_t i = 0; i < 8; i++)
@@ -380,21 +358,10 @@ void reInitCellData()
         cellData[i].mcuCodeName = "MCU-32-NA";
         cellData[i].siteLocation = "SITE-32-NA";
         cellData[i].bid = 0;
-        fillArray<int>(cellData[i].vcell, 45, -1);
-        fillArray<int32_t>(cellData[i].temp, 9, -1);
-        fillArray<int32_t>(cellData[i].pack, 3, -1);
-        // for (size_t j = 0; j < 45; j++)
-        // {
-        //     cellData[i].vcell[j] = -1;
-        // }
-        // for (size_t j = 0; j < 9; j++)
-        // {
-        //     cellData[i].temp[j] = -1;
-        // }
-        // for (size_t j = 0; j < 3; j++)
-        // {
-        //     cellData[i].pack[j] = -1;
-        // }
+        cellData[i].msgCount = 0;
+        Utilities::fillArray<int>(cellData[i].vcell, 45, -1);
+        Utilities::fillArray<int32_t>(cellData[i].temp, 9, -1);
+        Utilities::fillArray<int32_t>(cellData[i].pack, 3, -1);
         cellData[i].packStatus.bits.status = 0;
         cellData[i].packStatus.bits.door = 0;
     }
@@ -412,56 +379,41 @@ void declareStruct()
         cellData[i].baseCodeName = "BASE-32-NA";
         cellData[i].mcuCodeName = "MCU-32-NA";
         cellData[i].siteLocation = "SITE-32-NA";
-        // cellData[i].bid = 0;
-        // for (size_t j = 0; j < 45; j++)
-        // {
-        //     cellData[i].vcell[j] = 0;
-        // }
-        // for (size_t j = 0; j < 9; j++)
-        // {
-        //     cellData[i].temp[j] = 0;
-        // }
-        // for (size_t j = 0; j < 3; j++)
-        // {
-        //     cellData[i].pack[j] = 0;
-        // }
-        // cellData[i].status = 0;
-        // cellData[i].door = 0;
+        cellData[i].ver = "VER-32-NA";
+        cellData[i].chip = "CHIP-32-NA";
+        cellData[i].bid = 0;
+        cellData[i].msgCount = 0;
+        Utilities::fillArray<int>(cellData[i].vcell, 45, -1);
+        Utilities::fillArray<int32_t>(cellData[i].temp, 9, -1);
+        Utilities::fillArray<int32_t>(cellData[i].pack, 3, -1);
+        cellData[i].packStatus.bits.status = 0;
+        cellData[i].packStatus.bits.door = 0;
     }
     rmsInfo.rmsCode = rmsCode;
     rmsInfo.rackSn = rackSn;
     rmsInfo.ver = "1.0.0";
-    rmsInfo.ip = WiFi.localIP().toString();
+    IPAddress defIp(0 ,0, 0, 0);
+    rmsInfo.ip = defIp.toString();
+    switch (activeMode)
+    {
+        case Network::MODE::STATION :
+            rmsInfo.ip = WiFi.localIP().toString();
+        break;
+        case Network::MODE::AP :
+            rmsInfo.ip = WiFi.softAPIP().toString();
+        break;
+        default:
+        break;
+    }
+
     rmsInfo.mac = WiFi.macAddress();
     rmsInfo.deviceTypeName = "RMS";
 
     for (size_t i = 0; i < 8; i++)
     {
-        cmsInfo[i].bid = 0;
-        cmsInfo[i].cmsCodeName = "CMS-32-NA";
-        cmsInfo[i].baseCodeName = "BASE-32-NA";
-        cmsInfo[i].mcuCodeName = "MCU-32-NA";
-        cmsInfo[i].siteLocation = "SITE-32-NA";
-        cmsInfo[i].ver = "VER-32-NA";
-        cmsInfo[i].chip = "CHIP-32-NA";
-    }
-
-    for (size_t i = 0; i < 8; i++)
-    {
         addressList.push_back(i+1);
-        // cellBalancingStatus[i].bid = i;
-        // for (size_t j = 0; j < 45; j++)
-        // {
-        //     cellBalancingStatus[i].cball[j] = -1;
-        // }
     }
 
-    // for (size_t i = 0; i < 45; i++)
-    // {
-    //     cellAlarm[i].cell_number = i + 1;
-    //     cellAlarm[i].alm_status = 0;
-    //     cellAlarm[i].alm_code = 0;
-    // }
     commandStatus.addrCommand = 0;
     commandStatus.alarmCommand = 0;
     commandStatus.dataCollectionCommand = 0;
@@ -578,8 +530,7 @@ int readVcell(const String &input)
 {
     int bid = -1;
     int status = -1;
-    int led;
-    int errTimeout;
+    int cell[45];
     int startIndex; // bid start from 1, array index start from 0
     bool isAllDataCaptured = false;
     bool isAllDataNormal = true;
@@ -808,6 +759,7 @@ int readTemp(const String &input)
     int bid = 0;
     int startIndex = 0;
     int status = -1;
+    int32_t temp[9];
     bool isAllDataCaptured = false;
     bool isAllDataNormal = true;
     bool flag = true;
@@ -1013,6 +965,7 @@ int readVpack(const String &input)
     int bid = 0;
     int startIndex = 0;
     int status = -1;
+    int32_t vpack[4];
     bool isAllDataCaptured = false;
     bool isAllDataNormal = false;
     bool isValidJsonFormat = true;
@@ -1423,21 +1376,14 @@ int readCMSInfo(const String &input)
 
         if (docBattery.containsKey("cms_code"))
         {
-            // Serial.println("Writing Info to Local Storage");
-            cmsInfo[startIndex].frameName = docBattery["frame_name"].as<String>();
-            cellData[startIndex].frameName = cmsInfo[startIndex].frameName;
-            cmsInfo[startIndex].bid = bid;
-            cellData[startIndex].bid = cmsInfo[startIndex].bid;
-            cmsInfo[startIndex].cmsCodeName = docBattery["cms_code"].as<String>();
-            cellData[startIndex].cmsCodeName = cmsInfo[startIndex].cmsCodeName;
-            cmsInfo[startIndex].baseCodeName = docBattery["base_code"].as<String>();
-            cellData[startIndex].baseCodeName = cmsInfo[startIndex].baseCodeName;
-            cmsInfo[startIndex].mcuCodeName = docBattery["mcu_code"].as<String>();
-            cellData[startIndex].mcuCodeName = cmsInfo[startIndex].mcuCodeName;
-            cmsInfo[startIndex].siteLocation = docBattery["site_location"].as<String>();
-            cellData[startIndex].siteLocation = cmsInfo[startIndex].siteLocation;
-            cmsInfo[startIndex].ver = docBattery["ver"].as<String>();
-            cmsInfo[startIndex].chip = docBattery["chip"].as<String>();
+            cellData[startIndex].frameName = docBattery["frame_name"].as<String>();
+            cellData[startIndex].bid = bid;
+            cellData[startIndex].cmsCodeName = docBattery["cms_code"].as<String>();
+            cellData[startIndex].baseCodeName = docBattery["base_code"].as<String>();
+            cellData[startIndex].mcuCodeName = docBattery["mcu_code"].as<String>();
+            cellData[startIndex].siteLocation = docBattery["site_location"].as<String>();
+            cellData[startIndex].ver = docBattery["ver"].as<String>();
+            cellData[startIndex].chip = docBattery["chip"].as<String>();
             status = 1;
         }
         else
@@ -1460,17 +1406,6 @@ int readCMSInfo(const String &input)
         
     }
     return status;
-}
-
-int getBit(int pos, int data)
-{
-  if (pos > 7 & pos < 0)
-  {
-    return -1;
-  }
-  int temp = data >> pos;
-  temp = temp & 0x01;
-  return temp;
 }
 
 int readCMSBalancingResponse(const String &input)
@@ -1509,15 +1444,15 @@ int readCMSBalancingResponse(const String &input)
     rbal[2] = doc["RBAL1.3"];
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i] = getBit(i, rbal[0]);
+        cellBalancingStatus[startIndex].cball[i] = Utilities::getBit(i, rbal[0]);
     }
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+5] = getBit(i, rbal[1]);
+        cellBalancingStatus[startIndex].cball[i+5] = Utilities::getBit(i, rbal[1]);
     }
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+10] = getBit(i, rbal[2]);
+        cellBalancingStatus[startIndex].cball[i+10] = Utilities::getBit(i, rbal[2]);
     }
 
     rbal[0] = doc["RBAL2.1"];
@@ -1525,15 +1460,15 @@ int readCMSBalancingResponse(const String &input)
     rbal[2] = doc["RBAL2.3"];
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+15] = getBit(i, rbal[0]);
+        cellBalancingStatus[startIndex].cball[i+15] = Utilities::getBit(i, rbal[0]);
     }
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+20] = getBit(i, rbal[1]);
+        cellBalancingStatus[startIndex].cball[i+20] = Utilities::getBit(i, rbal[1]);
     }
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+25] = getBit(i, rbal[2]);
+        cellBalancingStatus[startIndex].cball[i+25] = Utilities::getBit(i, rbal[2]);
     }
 
     rbal[0] = doc["RBAL3.1"];
@@ -1541,15 +1476,15 @@ int readCMSBalancingResponse(const String &input)
     rbal[2] = doc["RBAL3.3"];
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+30] = getBit(i, rbal[0]);
+        cellBalancingStatus[startIndex].cball[i+30] = Utilities::getBit(i, rbal[0]);
     }
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+35] = getBit(i, rbal[1]);
+        cellBalancingStatus[startIndex].cball[i+35] = Utilities::getBit(i, rbal[1]);
     }
     for (size_t i = 0; i < 5; i++)
     {
-        cellBalancingStatus[startIndex].cball[i+40] = getBit(i, rbal[2]);
+        cellBalancingStatus[startIndex].cball[i+40] = Utilities::getBit(i, rbal[2]);
     }
     status = 1;
     Serial.println("Balancing Read Success");
@@ -2435,7 +2370,7 @@ void setup()
     // nvs_flash_erase(); // erase the NVS partition and...
     // nvs_flash_init(); // initialize the NVS partition.
     // while(true);
-    Serial.begin(115200);
+    Serial.begin(115200); 
 
     Preferences preferences;
     preferences.begin("dev_params");
@@ -2803,7 +2738,7 @@ void setup()
         hardwareAlarm.enable = 1;
     #endif
     declareStruct();
-    fillArray<int8_t>(isDataNormalList, 12, -1);
+    Utilities::fillArray<int8_t>(isDataNormalList, 12, -1);
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
     ledAnimation.run();
@@ -2855,9 +2790,9 @@ void setup()
 
     server.on("/get-device-cms-info", HTTP_GET, [](AsyncWebServerRequest *request)
     {
-        size_t cmsInfoArrSize = sizeof(cmsInfo) / sizeof(cmsInfo[0]);
+        size_t cmsInfoArrSize = sizeof(cellData) / sizeof(cellData[0]);
         // Serial.println(cmsInfoArrSize);
-        String jsonOutput = jsonManager.buildJsonCMSInfo(cmsInfo, cmsInfoArrSize);
+        String jsonOutput = jsonManager.buildJsonCMSInfo(cellData, cmsInfoArrSize);
         Serial.println(jsonOutput);
         request->send(200, "application/json", jsonOutput); });
 
@@ -2915,36 +2850,7 @@ void setup()
     {
       Serial.println("Get user network setting info");
       NetworkSetting s;
-      Preferences preferences;
-      
-      char c[32];
-      for (size_t i = 0; i < 8; i++)
-      {
-        uint16_t result = Utilities::swap16(ssidArr[i]);
-        c[i*2] = result >> 8;
-        c[i*2 + 1] = result & 0xff;
-      }
-      s.ssid = String(c);
-
-      for (size_t i = 0; i < 8; i++)
-      {
-        uint16_t result = Utilities::swap16(passArr[i]);
-        c[i*2] = result >> 8;
-        c[i*2 + 1] = result & 0xff;
-      }
-      s.pass = String(c);
-
-      IPAddress ip(ipOctet[0], ipOctet[1], ipOctet[2], ipOctet[3]);
-      IPAddress gateway(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
-      IPAddress subnet(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
-
-      s.ip = ip.toString();
-      s.gateway = gateway.toString();
-      s.subnet = subnet.toString();
-      s.server = gServerType;
-      s.mode = gMode;
-      
-      
+      Preferences preferences;    
       preferences.begin("dev_params");
       s.ssid = preferences.getString("ssid");
       s.pass = preferences.getString("pass");
@@ -3548,8 +3454,7 @@ void loop()
             Serial.println("Bid : " + String(addressList.at(i) - 1));
             Serial.println("Normal : "  + String(isDataNormal));
             Serial.println("Data is Complete.. Pushing to Database");
-            msgCount[i]++;
-            cellData[i].msgCount = msgCount[i];
+            cellData[i].msgCount++;
             packedData.rackSn = rackSn;
             // systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
             #ifdef AUTO_POST

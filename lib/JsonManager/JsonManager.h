@@ -37,7 +37,7 @@ class JsonManager {
         int buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, String &buffer); //get variable cms data
         String buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, const size_t numOfJsonObject = 8); // get 8 cms data
         String buildJsonRMSInfo(const RMSInfo& rmsInfo); // get rms info
-        String buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonObject = 8); // get 8 cms info
+        String buildJsonCMSInfo(const CellData cellData[], size_t numOfJsonObject = 8); // get 8 cms info
         String buildJsonBalancingStatus(const CellBalancingStatus cellBalancingStatus[], size_t numOfJsonObject); //get 8 cms balancing status
         String buildJsonAlarmParameter(const AlarmParam& alarmParam); // get RMS alarm parameter
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)

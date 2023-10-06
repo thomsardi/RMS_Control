@@ -12,6 +12,8 @@ struct CellData
     String baseCodeName = "";
     String mcuCodeName = "";
     String siteLocation = "";
+    String ver = "";
+    String chip = "";
     int bid = 0;
     int vcell[45] = {0};
     int32_t temp[9] = {0};

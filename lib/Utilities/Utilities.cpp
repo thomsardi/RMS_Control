@@ -112,3 +112,15 @@ uint16_t Utilities::swap16(uint16_t value)
     result = (second << 8) + first;
     return result;
 }
+
+int Utilities::getBit(int pos, int data)
+{
+  if (pos > 7 & pos < 0)
+  {
+    return -1;
+  }
+  int temp = data >> pos;
+  int result = temp & 0x01;
+  return result;
+}
+

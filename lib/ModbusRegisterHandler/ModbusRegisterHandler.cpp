@@ -323,8 +323,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
                 c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
-            Serial.println(result);
-            // preferences.putString("ssid", result);
+            // Serial.println(result);
+            preferences.putString("ssid", result);
         }
 
         if ((*_settingRegisters).getBulk(18, temp, 8))
@@ -336,8 +336,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
                 c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
-            Serial.println(result);
-            // preferences.putString("pass", result);
+            // Serial.println(result);
+            preferences.putString("pass", result);
         }
 
         uint8_t ipOctet[4];
@@ -439,8 +439,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
                 c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
-            Serial.println(result);
-            // preferences.putString("ssid", result);
+            // Serial.println(result);
+            preferences.putString("ssid", result);
         }
 
         if ((*_settingRegisters).getBulk(18, temp, 8))
@@ -453,8 +453,8 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
                 c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
-            Serial.println(result);
-            // preferences.putString("pass", result);
+            // Serial.println(result);
+            preferences.putString("pass", result);
         }
 
         uint8_t ipOctet[4];

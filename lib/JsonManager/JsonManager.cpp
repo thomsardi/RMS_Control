@@ -216,22 +216,22 @@ String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
     return result;
 }
 
-String JsonManager::buildJsonCMSInfo(const CMSInfo cmsInfo[], size_t numOfJsonObject)
+String JsonManager::buildJsonCMSInfo(const CellData cellData[], size_t numOfJsonObject)
 {
     String result;
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<1536> doc;
     JsonArray cms_info = doc.createNestedArray("cms_info");
     for (size_t i = 0; i < numOfJsonObject; i++)
     {
         JsonObject cms_info_0 = cms_info.createNestedObject();
-        cms_info_0["frame_name"] = cmsInfo[i].frameName;
-        cms_info_0["bid"] = cmsInfo[i].bid;
-        cms_info_0["cms_code"] = cmsInfo[i].cmsCodeName;
-        cms_info_0["base_code"] = cmsInfo[i].baseCodeName;
-        cms_info_0["mcu_code"] = cmsInfo[i].mcuCodeName;
-        cms_info_0["site_location"] = cmsInfo[i].siteLocation;
-        cms_info_0["ver"] = cmsInfo[i].ver;
-        cms_info_0["chip"] = cmsInfo[i].chip;
+        cms_info_0["frame_name"] = cellData[i].frameName;
+        cms_info_0["bid"] = cellData[i].bid;
+        cms_info_0["cms_code"] = cellData[i].cmsCodeName;
+        cms_info_0["base_code"] = cellData[i].baseCodeName;
+        cms_info_0["mcu_code"] = cellData[i].mcuCodeName;
+        cms_info_0["site_location"] = cellData[i].siteLocation;
+        cms_info_0["ver"] = cellData[i].ver;
+        cms_info_0["chip"] = cellData[i].chip;
     }
     serializeJson(doc, result);
     return result;
