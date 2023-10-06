@@ -1,6 +1,6 @@
 #include "Utilities.h"
 
-size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length)
+size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swap)
 {
     size_t stringLength = s.length();
     // Serial.println("string length : " + String(stringLength));
@@ -38,7 +38,15 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length)
     {
         if (isEven)
         {
-            buff[i] = (s.charAt(i*2) << 8) + s.charAt((i*2) + 1);
+            if (swap)
+            {
+                buff[i] = Utilities::charConcat(s.charAt(i*2 + 1), s.charAt(i*2)); //place higher index to leftmost character
+            }
+            else
+            {
+                buff[i] = Utilities::charConcat(s.charAt(i*2), s.charAt(i*2 + 1)); //place lower index to leftmost character
+            }
+            
             if (isLessCharacter)
             {
                 for (int j = resultLength; j < length; j++)
@@ -51,7 +59,16 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length)
         {
             if (i == (resultLength - 1))
             {
-                buff[i] = (s.charAt(i*2) << 8) + '\0';
+                if (swap)
+                {
+                    buff[i] = Utilities::charConcat('\0', s.charAt(i*2));
+                }
+                else
+                {
+                    buff[i] = Utilities::charConcat(s.charAt(i*2), '\0');
+                }
+                    
+                
                 if (isLessCharacter)
                 {
                     for (int j = resultLength; j < length; j++)
@@ -62,9 +79,36 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length)
             }
             else
             {
-                buff[i] = (s.charAt(i*2) << 8) + s.charAt((i*2) + 1);
+                if (swap)
+                {
+                    buff[i] = Utilities::charConcat(s.charAt(i*2 + 1), s.charAt(i*2)); //place higher index to leftmost character
+                }
+                else
+                {
+                    buff[i] = Utilities::charConcat(s.charAt(i*2), s.charAt(i*2 + 1)); //place lower index to leftmost character
+                }            
             }
         }
     }    
     return resultLength; 
+}
+
+uint16_t Utilities::charConcat(const char &first, const char &second)
+{
+    uint16_t result = 0;
+
+    result = (first << 8) + second;
+
+    return result;
+}
+
+uint16_t Utilities::swap16(uint16_t value)
+{
+    uint16_t result = 0;
+
+    uint8_t first = value >> 8;
+    uint8_t second = value & 0xff;
+
+    result = (second << 8) + first;
+    return result;
 }

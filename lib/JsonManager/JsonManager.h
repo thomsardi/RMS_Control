@@ -44,6 +44,7 @@ class JsonManager {
         String buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize);
         String getNetworkInfo(const NetworkSetting &networkSetting);
         String getUserNetworkSetting(const NetworkSetting &networkSetting);
+        String getUserAlarmSetting(const AlarmParam &alarmParam);
         void parser(const String &input, char delimiter, Vector<String> &valueVec);
         
 
@@ -71,6 +72,7 @@ class JsonManager {
         int jsonRMSRestartParser(const char* jsonInput);
         int jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter);
         NetworkSetting parseNetworkSetting(JsonVariant &json);
+        int parseFactoryReset(JsonVariant &json);
 
     private :
         int getBit(int pos, int data);

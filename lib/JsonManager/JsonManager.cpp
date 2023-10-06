@@ -340,6 +340,25 @@ String JsonManager::getUserNetworkSetting(const NetworkSetting &networkSetting)
     return output;
 }
 
+/**
+ * @brief   get user alarm setting
+ * @return  json formatted string
+*/
+String JsonManager::getUserAlarmSetting(const AlarmParam &alarmParam)
+{    
+    StaticJsonDocument<256> doc;
+    String output;
+    doc["vcell_diff"] = alarmParam.vcell_diff;
+    doc["vcell_diff_reconnect"] = alarmParam.vcell_diff_reconnect;
+    doc["vcell_max"] = alarmParam.vcell_max;
+    doc["vcell_min"] = alarmParam.vcell_min;
+    doc["vcell_min_reconnect"] = alarmParam.vcell_reconnect;
+    doc["temp_max"] = alarmParam.temp_max;
+    doc["temp_min"] = alarmParam.temp_min;
+    serializeJson(doc, output);
+    return output;
+}
+
 int JsonManager::jsonBalancingCommandParser(const char* jsonInput, CellBalancingCommand &cellBalancingCommand)
 {
     int status = 0;
@@ -522,15 +541,22 @@ int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& ala
         Serial.println(error.c_str());
         return -1;
     }
-    if (!doc.containsKey("vcell_max")) 
+    if (!doc.containsKey("vcell_diff") || 
+        !doc.containsKey("vcell_diff_reconnect") ||
+        !doc.containsKey("vcell_max") ||
+        !doc.containsKey("vcell_min") ||
+        !doc.containsKey("vcell_min_reconnect") ||
+        !doc.containsKey("temp_max") ||
+        !doc.containsKey("temp_min") ) 
     {
         return -1;
     }
+    
     alarmParam.vcell_diff = doc["vcell_diff"];
     alarmParam.vcell_diff_reconnect = doc["vcell_diff_reconnect"];
     alarmParam.vcell_max = doc["vcell_max"];
     alarmParam.vcell_min = doc["vcell_min"];
-    alarmParam.vcell_reconnect = doc["vcell_reconnect"];
+    alarmParam.vcell_reconnect = doc["vcell_min_reconnect"];
     alarmParam.temp_max = doc["temp_max"].as<signed int>();
     alarmParam.temp_min = doc["temp_min"].as<signed int>();
     return 1;
@@ -1120,6 +1146,23 @@ NetworkSetting JsonManager::parseNetworkSetting(JsonVariant &json)
     setting.mode = mode;
     setting.flag = 1;
     return setting;
+}
+
+/**
+ * @brief   parse json POST request
+ * @return  int, -1 when fail, otherwise set to 1
+*/
+int JsonManager::parseFactoryReset(JsonVariant &json)
+{
+    int status = -1;
+    if (!json.containsKey("factory_reset"))
+    {
+        return -1;
+    }
+    
+    status = json["factory_reset"];
+
+    return status;
 }
 
 int JsonManager::getBit(int pos, int data)

@@ -99,35 +99,35 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
             memory[70] = _cellDataptr[group].bid;
             memory[71] = _cellDataptr[group].msgCount;
             uint16_t temp[8];
-            if (Utilities::toDoubleChar(_cellDataptr[group].frameName, temp, 8) > 0)
+            if (Utilities::toDoubleChar(_cellDataptr[group].frameName, temp, 8, true) > 0)
             {
                 for (size_t i = 0; i < 8; i++)
                 {
                     memory[72+i] = temp[i];
                 }
             }
-            if (Utilities::toDoubleChar(_cellDataptr[group].cmsCodeName, temp, 8) > 0)
+            if (Utilities::toDoubleChar(_cellDataptr[group].cmsCodeName, temp, 8, true) > 0)
             {
                 for (size_t i = 0; i < 8; i++)
                 {
                     memory[80+i] = temp[i];
                 }
             }
-            if (Utilities::toDoubleChar(_cellDataptr[group].baseCodeName, temp, 8) > 0)
+            if (Utilities::toDoubleChar(_cellDataptr[group].baseCodeName, temp, 8, true) > 0)
             {
                 for (size_t i = 0; i < 8; i++)
                 {
                     memory[88+i] = temp[i];
                 }
             }
-            if (Utilities::toDoubleChar(_cellDataptr[group].mcuCodeName, temp, 8) > 0)
+            if (Utilities::toDoubleChar(_cellDataptr[group].mcuCodeName, temp, 8, true) > 0)
             {
                 for (size_t i = 0; i < 8; i++)
                 {
                     memory[96+i] = temp[i];
                 }
             }
-            if (Utilities::toDoubleChar(_cellDataptr[group].siteLocation, temp, 8) > 0)
+            if (Utilities::toDoubleChar(_cellDataptr[group].siteLocation, temp, 8, true) > 0)
             {
                 for (size_t i = 0; i < 8; i++)
                 {
@@ -159,7 +159,7 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
             uint8_t end = addr + words - offset;
 
             uint16_t buff[8];
-            if (Utilities::toDoubleChar(_modbusRegisterData->inputRegister.packedData->rackSn, buff, 8))
+            if (Utilities::toDoubleChar(_modbusRegisterData->inputRegister.packedData->rackSn, buff, 8, true))
             {
                 for (size_t i = 0; i < 8; i++)
                 {
@@ -296,17 +296,20 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
 
     if ((*_settingRegisters).get(9))
     {
-        // preferences.putUShort("cdiff", (*_settingRegisters).get(0));
-        // preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
-        // preferences.putUShort("coverv", (*_settingRegisters).get(2));
-        // preferences.putUShort("cunderv", (*_settingRegisters).get(3));
-        // preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
-        // preferences.putInt("covert", (*_settingRegisters).getInt(5));
-        // preferences.putInt("cundert", (*_settingRegisters).getInt(7));
+        (*_settingRegisters).set(9, 0);
+        preferences.putUShort("cdiff", (*_settingRegisters).get(0));
+        preferences.putUShort("cdiff_r", (*_settingRegisters).get(1));
+        preferences.putUShort("coverv", (*_settingRegisters).get(2));
+        preferences.putUShort("cunderv", (*_settingRegisters).get(3));
+        preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
+        preferences.putInt("covert", (*_settingRegisters).getInt(5));
+        preferences.putInt("cundert", (*_settingRegisters).getInt(7));
+        preferences.putChar("p_flag", 2);
     }
 
     if ((*_settingRegisters).get(40) == 1)
     {        
+        (*_settingRegisters).set(40, 0);
         uint16_t temp[8];
         char c[16];
         String result;
@@ -315,8 +318,9 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
             
             for (size_t i = 0; i < 8; i++)
             {
-                c[i*2] = temp[i] >> 8;
-                c[(i*2) + 1] = temp[i] & 0xFF; 
+                uint16_t result = Utilities::swap16(temp[i]);
+                c[i*2] = result >> 8;
+                c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
             Serial.println(result);
@@ -325,11 +329,11 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
 
         if ((*_settingRegisters).getBulk(18, temp, 8))
         {
-            
             for (size_t i = 0; i < 8; i++)
             {
-                c[i*2] = temp[i] >> 8;
-                c[(i*2) + 1] = temp[i] & 0xFF; 
+                uint16_t result = Utilities::swap16(temp[i]);
+                c[i*2] = result >> 8;
+                c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
             Serial.println(result);
@@ -341,22 +345,27 @@ ModbusMessage ModbusRegisterHandler::handleWriteMultipleRegisters(ModbusMessage 
         uint8_t subnetOctet[4];
         for (size_t i = 0; i < 4; i++)
         {
-            ipOctet[i] = (*_settingRegisters).get(28+i);
-            gatewayOctet[i] = (*_settingRegisters).get(32+i);
-            subnetOctet[i] = (*_settingRegisters).get(36+i);
+            ipOctet[i] = (*_settingRegisters).get(26+i);
+            gatewayOctet[i] = (*_settingRegisters).get(30+i);
+            subnetOctet[i] = (*_settingRegisters).get(34+i);
         }
         
         IPAddress ipAddr(ipOctet[0], ipOctet[1], ipOctet[2], ipOctet[3]);
         IPAddress gatewayAddr(gatewayOctet[0], gatewayOctet[1], gatewayOctet[2], gatewayOctet[3]);
         IPAddress subnetAddr(subnetOctet[0], subnetOctet[1], subnetOctet[2], subnetOctet[3]);
             
-        // preferences.putString("ip", ipAddr.toString());
-        // preferences.putString("gateway", gatewayAddr.toString());
-        // preferences.putString("subnet", subnetAddr.toString());
-        // preferences.putUChar("server", (*_settingRegisters).get(40));
-        // preferences.putUChar("mode", (*_settingRegisters).get(41));
+        // Serial.println("ip : " + ipAddr.toString());
+        // Serial.println("gateway : " + gatewayAddr.toString());
+        // Serial.println("subnet : " + subnetAddr.toString());
+        // Serial.println("server : " + String((*_settingRegisters).get(38)));
+        // Serial.println("mode : " + String((*_settingRegisters).get(39)));
 
-        (*_settingRegisters).set(40, 0);
+        preferences.putString("ip", ipAddr.toString());
+        preferences.putString("gateway", gatewayAddr.toString());
+        preferences.putString("subnet", subnetAddr.toString());
+        preferences.putUChar("server", (*_settingRegisters).get(38));
+        preferences.putUChar("mode", (*_settingRegisters).get(39));
+        preferences.putChar("n_flag", 2);
     }
     preferences.end();
     return response;
@@ -411,6 +420,7 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
         preferences.putUShort("cunderv_r", (*_settingRegisters).get(4));
         preferences.putInt("covert", (*_settingRegisters).getInt(5));
         preferences.putInt("cundert", (*_settingRegisters).getInt(7));
+        preferences.putChar("p_flag", 2);
     }
 
     if ((*_settingRegisters).get(40) == 1)
@@ -424,12 +434,13 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
             
             for (size_t i = 0; i < 8; i++)
             {
-                c[i*2] = temp[i] >> 8;
-                c[(i*2) + 1] = temp[i] & 0xFF; 
+                uint16_t result = Utilities::swap16(temp[i]);
+                c[i*2] = result >> 8;
+                c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
-            // Serial.println(result);
-            preferences.putString("ssid", result);
+            Serial.println(result);
+            // preferences.putString("ssid", result);
         }
 
         if ((*_settingRegisters).getBulk(18, temp, 8))
@@ -437,12 +448,13 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
             
             for (size_t i = 0; i < 8; i++)
             {
-                c[i*2] = temp[i] >> 8;
-                c[(i*2) + 1] = temp[i] & 0xFF; 
+                uint16_t result = Utilities::swap16(temp[i]);
+                c[i*2] = result >> 8;
+                c[i*2 + 1] = result & 0xff;
             }
             result = String(c);
-            // Serial.println(result);
-            preferences.putString("pass", result);
+            Serial.println(result);
+            // preferences.putString("pass", result);
         }
 
         uint8_t ipOctet[4];
@@ -470,6 +482,7 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
         preferences.putString("subnet", subnetAddr.toString());
         preferences.putUChar("server", (*_settingRegisters).get(38));
         preferences.putUChar("mode", (*_settingRegisters).get(39));
+        preferences.putChar("n_flag", 2);
     }
     preferences.end();
     return response;
