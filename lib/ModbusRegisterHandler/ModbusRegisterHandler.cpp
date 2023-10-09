@@ -58,7 +58,7 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
     {
         int group = addr / _blockSize;
         
-        int maxAddr = _cellDataSize*_blockSize + _elementSize;
+        int maxAddr = (_cellDataSize - 1)*_blockSize + _elementSize;
         int maxGroupAddr = group *_blockSize + _elementSize;
 
         int startAddr = addr - (group*_blockSize);
@@ -76,7 +76,9 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
         else
         {
             
-            uint16_t memory[_elementSize] = {0};
+            uint16_t memory[_elementSize];
+
+            Utilities::fillArray<uint16_t>(memory, _elementSize, 0);
             
             for (size_t i = 0; i < 45; i++) //45 cell data
             {
@@ -232,7 +234,7 @@ ModbusMessage ModbusRegisterHandler::handleWriteCoil(ModbusMessage &request)
             coilState = true;
         }
 
-        if (_mbusCoilData->set(coilState, start)) {
+        if (_mbusCoilData->set(start, coilState)) {
             // All fine, coil was set.
             response = ECHO_RESPONSE;
             // Pull the trigger
@@ -385,7 +387,7 @@ ModbusMessage ModbusRegisterHandler::handleWriteRegister(ModbusMessage &request)
     response.add(request.getServerID(), request.getFunctionCode());
     response.add(addr);
     
-    if ((addr + words) > maxAddr) {
+    if ((addr + words - 1) > maxAddr) {
         
         // Yes - send respective error response
         // Serial.println(addr+words);

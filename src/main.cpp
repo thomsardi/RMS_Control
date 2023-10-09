@@ -2212,12 +2212,13 @@ ModbusMessage FC04(ModbusMessage request) {
 
     otherInfo.data[0] = addressList.size();
     otherInfo.data[1] = systemStatus.val;
-    // for (size_t i = 0; i < 8; i++)
-    // {
-    //     fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
-    //     fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
-    //     fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
-    // }
+    
+    for (size_t i = 0; i < 8; i++)
+    {
+        Utilities::fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
+        Utilities::fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
+        Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
+    }
     
     ModbusRegisterHandler mrh(modbusRegisterData);
     return mrh.handleReadInputRegisters(request);
@@ -2420,7 +2421,7 @@ void setup()
     }
     settingRegisters.link(&gServerType, 38);
     settingRegisters.link(&gMode, 39);
-    settingRegisters.link(&saveNetwork, 40);
+    settingRegisters.link(&saveNetwork, 40);    
     
     bool *boolPtr = reinterpret_cast<bool*>(&addressingCommand.exec);
     mbusCoilData.link(boolPtr, 0);
@@ -3320,6 +3321,14 @@ void loop()
     int serialResponse = 0;
     int qty;
     startButton.tick();
+
+    for (size_t i = 0; i < 8; i++)
+    {
+        Utilities::fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
+        Utilities::fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
+        Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
+    }
+
     // LedData ledData = ledAnimation.update();
     // Serial.println("Current Group : " + String(ledData.currentGroup));
     // Serial.println("Current String : " + String(ledData.currentString));

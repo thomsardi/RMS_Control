@@ -27,9 +27,8 @@ union SystemStatus {
 struct OtherInfo {
 
     public :
-        uint16_t data[10];
-
         size_t elementSize = 10;
+        uint16_t data[10];
 
         uint16_t get(int i) 
         {
@@ -95,8 +94,8 @@ struct OtherInfo {
 
 struct SettingRegisters {
     public :
-        uint16_t* data[41];
         size_t elementSize = 41;
+        uint16_t* data[41];
 
         SettingRegisters()
         {
@@ -143,12 +142,19 @@ struct SettingRegisters {
             {
                 return 0;
             }
+
+            if (data[index] == &defaultValue)
+            {
+                // Serial.println("Setting register addr not linked");
+                return 0;
+            }
+
             *data[index] = value;
             return 1;
         }
 
         bool setBulk(size_t index, uint16_t *buff, size_t length) 
-        {
+        {             
             if (index + length >= this->elementSize) 
             {
                 return 0;
@@ -156,7 +162,12 @@ struct SettingRegisters {
 
             for (size_t i = 0; i < length; i++)
             {
-                *data[index + i] = buff[i];
+                set(index+i, buff[i]);
+                // if (data[index] == &defaultValue)
+                // {
+                //     continue;
+                // }
+                // *data[index + i] = buff[i];
             }
             return 1;
         }
@@ -185,9 +196,9 @@ struct SettingRegisters {
 
 struct MbusCoilData {
     public :
-        bool *data[11];
         size_t elementSize = 11;
-
+        bool *data[11];
+        
         MbusCoilData()
         {
             for (size_t i = 0; i < this->elementSize; i++)
@@ -220,12 +231,18 @@ struct MbusCoilData {
             return 1;
         }
 
-        bool set(bool value, size_t index) 
+        bool set(size_t index, bool value) 
         {
             if (index >= this->elementSize) 
             {
                 return 0;
             }
+
+            if (data[index] == &defaultValue)
+            {
+                return 0;
+            }
+
             *data[index] = value;
             return 1;
         }
@@ -239,7 +256,13 @@ struct MbusCoilData {
 
             for (size_t i = 0; i < length; i++)
             {
-                *data[index + i] = buff[i];
+                set(index+i, buff[i]);
+                
+                // if (data[index] == &defaultValue)
+                // {
+                //     continue;;
+                // }
+                // *data[index + i] = buff[i];
             }
             return 1;
         }
