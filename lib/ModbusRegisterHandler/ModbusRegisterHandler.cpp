@@ -161,11 +161,33 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
             uint8_t end = addr + words - offset;
 
             uint16_t buff[8];
+            uint16_t macBuff[6];
             if (Utilities::toDoubleChar(_modbusRegisterData->inputRegister.packedData->rackSn, buff, 8, true))
             {
                 for (size_t i = 0; i < 8; i++)
                 {
                     (*_otherInfo).set(2+i, buff[i]);
+                }
+            }
+
+            // Serial.println(_modbusRegisterData->inputRegister.packedData->rmsInfoPtr->mac);
+            String temp = _modbusRegisterData->inputRegister.packedData->rmsInfoPtr->mac;
+            
+            int index = 0;
+            while(index != -1)
+            {
+                index = temp.indexOf(":");
+                if (index != - 1)
+                {
+                    temp.remove(index, 1);
+                }
+            }
+
+            if (Utilities::toDoubleChar(temp, macBuff, 6, true))
+            {
+                for (size_t i = 0; i < 6; i++)
+                {
+                    (*_otherInfo).set(10+i, macBuff[i]);
                 }
             }
 

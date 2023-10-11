@@ -19,6 +19,8 @@ class Utilities {
 /**
  * Not yet implemented, do not call this method
  * @brief   extract bit from specified data type
+ * @param[in]   pos position of bit
+ * @tparam  data    data value to be extracted
  * @return  extracted bit value (1 or 0) and always 0 if error
  * 
 */
@@ -37,7 +39,12 @@ bool Utilities::_getBit(int pos, T data)
 };
 
 /**
- * @brief fill array with specified value
+ * Template class to fill array with specified value
+ * 
+ * @brief       fill array with specified value
+ * @tparam      a[] the data array to be filled
+ * @param[in]   len length of the array
+ * @tparam      value   value to fill the array  
 */
 template <typename T>
 void Utilities::fillArray(T a[], size_t len, T value)
@@ -48,6 +55,15 @@ void Utilities::fillArray(T a[], size_t len, T value)
     }
 };
 
+/**
+ * Template class to fill array with random value between min and max
+ * 
+ * @brief       fill array with random value
+ * @tparam      a[] the data array to be filled
+ * @param[in]   len length of the array
+ * @tparam      min minimum value
+ * @tparam      max maximum value  
+*/
 template <typename T>
 void Utilities::fillArrayRandom(T a[], size_t len, T min, T max)
 {

@@ -27,8 +27,8 @@ union SystemStatus {
 struct OtherInfo {
 
     public :
-        size_t elementSize = 10;
-        uint16_t data[10];
+        size_t elementSize = 16;
+        uint16_t data[16];
 
         uint16_t get(int i) 
         {

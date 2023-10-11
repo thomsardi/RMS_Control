@@ -1,5 +1,14 @@
 #include "Utilities.h"
 
+/**
+ * Convert string into double char (16bit), e.g hello will translate into "he", "ll" "o\0"
+ * 
+ * @param[in]   s   string to be converted into
+ * @param[in]   *buff   pointer of array
+ * @param[in]   length  the length of the buff array
+ * @param[in]   swap    swap the character order
+ * @return  the length of the converted array
+*/
 size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swap)
 {
     size_t stringLength = s.length();
@@ -8,6 +17,7 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swa
     bool isEven = false;
     bool isLessCharacter = false;
 
+    // check the length of string, make sure the buffer is big enough to store
     if (stringLength > length*2)
     {
         return resultLength;
@@ -17,6 +27,7 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swa
         isLessCharacter = true;
     }
 
+    // check even or odd character count
     if (stringLength % 2 == 0)
     {
         // Serial.println("Even");
@@ -29,6 +40,7 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swa
         resultLength = (stringLength / 2) + 1;
     }
 
+    // fill the buff array with 0
     for (size_t i = 0; i < length; i++)
     {
         buff[i] = 0;
@@ -47,29 +59,30 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swa
                 buff[i] = Utilities::charConcat(s.charAt(i*2), s.charAt(i*2 + 1)); //place lower index to leftmost character
             }
             
-            if (isLessCharacter)
+            if (isLessCharacter) // if less than 32 character, fill the leftover with null
             {
                 for (int j = resultLength; j < length; j++)
                 {
-                    buff[j] = 0; //Null terminator
+                    buff[j] = 0; //add null terminator
                 }
             }
         }
         else
         {
+            // only executed if the character is odd, 
             if (i == (resultLength - 1))
             {
                 if (swap)
                 {
-                    buff[i] = Utilities::charConcat('\0', s.charAt(i*2));
+                    buff[i] = Utilities::charConcat('\0', s.charAt(i*2)); // add null terminator at the very end
                 }
                 else
                 {
-                    buff[i] = Utilities::charConcat(s.charAt(i*2), '\0');
+                    buff[i] = Utilities::charConcat(s.charAt(i*2), '\0'); // add null terminator at the very end
                 }
                     
                 
-                if (isLessCharacter)
+                if (isLessCharacter) // if less than 32 character, fill the leftover with null
                 {
                     for (int j = resultLength; j < length; j++)
                     {
@@ -93,6 +106,13 @@ size_t Utilities::toDoubleChar(String s, uint16_t *buff, size_t length, bool swa
     return resultLength; 
 }
 
+/**
+ * Concatenate two char (uint8) into 16 bit unsigned int
+ * 
+ * @param[in]   first   the first character
+ * @param[in]   second  the second character
+ * @return  result of the 2 char concatenated
+*/
 uint16_t Utilities::charConcat(const char &first, const char &second)
 {
     uint16_t result = 0;
@@ -102,6 +122,12 @@ uint16_t Utilities::charConcat(const char &first, const char &second)
     return result;
 }
 
+/**
+ * Swap the MSB and LSB
+ * 
+ * @param[in]   value   the value to be swapped
+ * @return  swapped value
+*/
 uint16_t Utilities::swap16(uint16_t value)
 {
     uint16_t result = 0;
@@ -113,6 +139,13 @@ uint16_t Utilities::swap16(uint16_t value)
     return result;
 }
 
+/**
+ * Get bit from specified position
+ * 
+ * @param[in]   pos position of the bit
+ * @param[in]   data    data that need to be extracted
+ * @return  bit value, 0 or 1
+*/
 int Utilities::getBit(int pos, int data)
 {
   if (pos > 7 & pos < 0)

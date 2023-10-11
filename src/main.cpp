@@ -372,6 +372,7 @@ void declareStruct()
     packedData.rackSn = rackSn;
     packedData.p = cellData;
     packedData.size = cellDataSize;
+    packedData.rmsInfoPtr = &rmsInfo;
     for (size_t i = 0; i < cellDataSize; i++)
     {
         cellData[i].frameName = "FRAME-32-NA";
@@ -2213,12 +2214,13 @@ ModbusMessage FC04(ModbusMessage request) {
     otherInfo.data[0] = addressList.size();
     otherInfo.data[1] = systemStatus.val;
     
-    for (size_t i = 0; i < 8; i++)
-    {
-        Utilities::fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
-        Utilities::fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
-        Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
-    }
+    // for (size_t i = 0; i < 8; i++)
+    // {
+    //     cellData[i].bid = i + 1;
+    //     Utilities::fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
+    //     Utilities::fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
+    //     Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
+    // }
     
     ModbusRegisterHandler mrh(modbusRegisterData);
     return mrh.handleReadInputRegisters(request);
@@ -3322,12 +3324,13 @@ void loop()
     int qty;
     startButton.tick();
 
-    for (size_t i = 0; i < 8; i++)
-    {
-        Utilities::fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
-        Utilities::fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
-        Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
-    }
+    // for (size_t i = 0; i < 8; i++)
+    // {
+    //     cellData[i].bid = i + 1;
+    //     Utilities::fillArrayRandom<int>(cellData[i].vcell, 45, 2800, 3800);
+    //     Utilities::fillArrayRandom<int32_t>(cellData[i].temp, 9, 10000, 100000);
+    //     Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
+    // }
 
     // LedData ledData = ledAnimation.update();
     // Serial.println("Current Group : " + String(ledData.currentGroup));

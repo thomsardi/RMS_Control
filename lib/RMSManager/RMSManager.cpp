@@ -50,7 +50,7 @@ String RMSManager::createCMSStatusRequest(uint8_t bid)
     String output;
     DynamicJsonDocument docBattery(1024);
     docBattery["BID"] = bid;
-    docBattery["RBQ"] = 1;
+    docBattery["INFO"] = 1;
     serializeJson(docBattery, output);
     return output;
 }

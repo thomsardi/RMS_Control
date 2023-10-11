@@ -38,12 +38,6 @@ struct CellData
     // int door = 0;
 };
 
-struct PackedData {
-    String rackSn = "";
-    CellData *p;
-    int size;
-};
-
 struct RMSInfo
 {
     String rmsCode = "";
@@ -53,6 +47,15 @@ struct RMSInfo
     String mac = "";
     String deviceTypeName = "";
 };
+
+struct PackedData {
+    String rackSn = "";
+    CellData *p;
+    int size;
+    RMSInfo *rmsInfoPtr;
+};
+
+
 
 struct CMSInfo
 {

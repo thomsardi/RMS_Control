@@ -26,12 +26,15 @@ int Updater::isUpdate()
 void Updater::updateVcell(bool isVcellNormal)
 {
     _isVcellNormal = isVcellNormal;
-    if (_isVcellUpdated)
-    {
-        _isTempUpdated = false;
-        _isVpackUpdated = false;
-        _isStatusUpdated = false;
-    }
+    _isTempUpdated = false;
+    _isVpackUpdated = false;
+    _isStatusUpdated = false;
+    // if (_isVcellUpdated)
+    // {
+    //     _isTempUpdated = false;
+    //     _isVpackUpdated = false;
+    //     _isStatusUpdated = false;
+    // }
     _isVcellUpdated = true;
     Serial.println("Vcell Updated");
 }
