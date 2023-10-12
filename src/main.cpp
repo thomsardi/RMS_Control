@@ -32,6 +32,8 @@
 #include <Preferences.h>
 #include <nvs_flash.h>
 #include <Utilities.h>
+#include <ArduinoOTA.h>
+#include "esp_log.h"
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -84,16 +86,16 @@
     #define HOST_NAME "RMS-Rnd-Room"
 #endif
 
-// int cell[45];
-// int32_t temp[9];
-// int32_t vpack[4]; // index 0 is total vpack
+const char* TAG = "RMS-Control-Event";
+TaskHandle_t rs485TaskHandle;
+QueueHandle_t rs485Queue;
+
 int battRelay = 23;
 int buzzer = 26;
 
 int internalLed = 2;
 
 int const numOfShiftRegister = 8;
-// int address = 1; //BID start from 1
 
 // int serialData = 12;
 // int shcp = 14;
@@ -2374,6 +2376,9 @@ void setup()
     // nvs_flash_init(); // initialize the NVS partition.
     // while(true);
     Serial.begin(115200); 
+    Serial.setDebugOutput(true);
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+    ESP_LOGI(TAG, "Test ESP_LOGI");
 
     Preferences preferences;
     preferences.begin("dev_params");
@@ -2745,6 +2750,37 @@ void setup()
     ledAnimation.setLedGroupNumber(addressList.size());
     ledAnimation.setLedStringNumber(8);
     ledAnimation.run();
+
+    ArduinoOTA.onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+    //   Serial.println("Start updating " + type);
+      ESP_LOGI(TAG, "Start updating %s\n", type.c_str());
+    })
+    .onEnd([]() {
+    //   Serial.println("\nEnd");
+        ESP_LOGI(TAG, "\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+    //   Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    ESP_LOGI(TAG, "Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      ESP_LOGI(TAG, "Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) ESP_LOGI(TAG, "Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) ESP_LOGI(TAG, "Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) ESP_LOGI(TAG, "Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) ESP_LOGI(TAG, "Receive Failed");
+      else if (error == OTA_END_ERROR) ESP_LOGI(TAG, "End Failed");
+    });
+
+    ArduinoOTA.begin();
+
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
         request->send(200, "text/plain", "Talis 30 MJ Rack Management System"); });
 
@@ -3323,6 +3359,7 @@ void loop()
     int serialResponse = 0;
     int qty;
     startButton.tick();
+    ArduinoOTA.handle();
 
     // for (size_t i = 0; i < 8; i++)
     // {
