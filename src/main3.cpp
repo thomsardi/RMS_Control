@@ -32,7 +32,9 @@
 #include <Preferences.h>
 #include <nvs_flash.h>
 #include <Utilities.h>
-#include <TalisRS485Handler.h>
+#include <ArduinoOTA.h>
+
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
@@ -86,14 +88,9 @@
     #define HOST_NAME "RMS-Rnd-Room"
 #endif
 
-const char* TAG = "RMS-Control-Event";
-
-std::vector<TalisRS485TxMessage> userCommand;
-std::vector<uint8_t> addressList;
-
-QueueHandle_t rs485ReceiverQueue = xQueueCreate(10, sizeof(TalisRS485RxMessage));
-TaskHandle_t rs485ReceiverTaskHandle;
-TaskHandle_t rs485TransmitterTaskHandle;
+const char* TAG = "RMS-Control";
+TaskHandle_t rs485TaskHandle;
+QueueHandle_t rs485Queue;
 
 int battRelay = 23;
 int buzzer = 26;
@@ -158,7 +155,6 @@ const char *host = DATABASE_IP;
 String hostName = HOST_NAME;
 
 AsyncWebServer server(80);
-TalisRS485Handler talis;
 JsonManager jsonManager;
 RMSManager rmsManager;
 LedAnimation ledAnimation(8,8, true);
@@ -243,7 +239,6 @@ int dataComplete = 0;
 
 // uint16_t msgCount[16];
 int addressListStorage[12];
-uint8_t currentAddrBid;
 Vector<int> addressList(addressListStorage);
 int8_t isDataNormalList[12];
 
@@ -2377,112 +2372,11 @@ void IRAM_ATTR onTimer()
            
 }
 
-void addressingHandler(TalisRS485Handler &talis, const TalisRS485RxMessage &data, uint8_t &currentAddrBid)
-{
-  const char* TAG = "Addressing handler";
-  String s;
-  for (size_t i = 0; i < data.dataLength; i++)
-  {
-    s += (char)data.rxData[i];
-  }
-  StaticJsonDocument<128> doc;
-  DeserializationError error = deserializeJson(doc, s);
-  
-  if (doc.containsKey("BID_STATUS"))
-  {
-    ESP_LOGV(TAG, "found \"BID_STATUS\"\n");
-    TalisRS485TxMessage txMsg;
-    txMsg.token = 2000;
-    String output;
-    StaticJsonDocument<16> doc;
-    doc["BID_ADDRESS"] = currentAddrBid;
-    serializeJson(doc, output);
-    output += '\n';
-    txMsg.dataLength = output.length();
-    txMsg.requestCode = TalisRS485::RequestType::ADDRESS;
-    txMsg.writeBuffer((uint8_t*)output.c_str(), output.length());
-    Serial.print(output);
-    // ESP_LOGV(TAG, "Serialize json : \n%s\n", output);
-    talis.send(txMsg);
-  }
-
-  if (doc.containsKey("RESPONSE"))
-  {
-    ESP_LOGV(TAG, "Addr bid : %d", currentAddrBid);
-    ESP_LOGV(TAG, "Increment bid");
-    addressList.push_back(currentAddrBid);
-    currentAddrBid++;
-  }
-}
-
-void rs485ReceiverTask(void *pv)
-{
-  const char* TAG = "RS485 Receiver Task";
-  esp_log_level_set(TAG, ESP_LOG_VERBOSE);
-
-  while (1)
-  {
-    TalisRS485RxMessage msgBuffer;
-    if (xQueueReceive(rs485ReceiverQueue, &msgBuffer, portMAX_DELAY) == pdTRUE)
-    {  
-      ESP_LOGV(TAG, "Serial incoming");
-      ESP_LOGV(TAG, "Message token : %d\n", msgBuffer.token);
-      if (msgBuffer.token >= 1000 && msgBuffer.token < 2000)
-      {
-        ESP_LOGV(TAG, "command from user");
-      }
-      
-      if (msgBuffer.dataLength < 0)
-      {
-        ESP_LOGV(TAG, "Error on received");
-        switch (msgBuffer.error)
-        {
-        case TalisRS485::Error::NO_TERMINATE_CHARACTER :
-          ESP_LOGV(TAG, "No terminate character found");
-          break;
-        case TalisRS485::Error::TIMEOUT :
-          ESP_LOGV(TAG, "Timeout");
-          break;
-        case TalisRS485::Error::BUFFER_OVF :
-          ESP_LOGV(TAG, "Buffer Overflow");
-        default:
-          break;
-        }
-      }
-      else
-      {
-        addressingHandler(talis, msgBuffer, currentAddrBid);
-        ESP_LOGV(TAG, "Length : %d\n", msgBuffer.dataLength);
-        ESP_LOG_BUFFER_CHAR(TAG, msgBuffer.rxData, msgBuffer.dataLength);
-      }
-    }
-  }
-}
-
-
-void rs485TransmitterTask(void *pv)
-{
-  const char* TAG = "RS485 Transmitter Task";
-  esp_log_level_set(TAG, ESP_LOG_VERBOSE);
-
-  while (1)
-  {
-    // ESP_LOGV(TAG, "Transmitter Task");
-    talis.handle();
-    vTaskDelay(1);
-  }
-}
-
-
 void setup()
 {
     // nvs_flash_erase(); // erase the NVS partition and...
     // nvs_flash_init(); // initialize the NVS partition.
     // while(true);
-    userCommand.reserve(5);
-    addressList.reserve(32);
-    xTaskCreate(rs485ReceiverTask, "RS485 Receiver Task", 4096, NULL, 10, &rs485ReceiverTaskHandle);
-    xTaskCreate(rs485TransmitterTask, "RS485 Transmitter Task", 4096, NULL, 5, &rs485TransmitterTaskHandle);
     Serial.begin(115200); 
     Serial.setDebugOutput(true);
     esp_log_level_set(TAG, ESP_LOG_INFO);
