@@ -33,7 +33,11 @@
 #include <nvs_flash.h>
 #include <Utilities.h>
 #include <TalisRS485Handler.h>
+#include <WiFiSetting.h>
+#include <TalisMemory.h>
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
+#include "defs.h"
 
 #define EEPROM_RMS_CODE_ADDRESS 0x00    //Address for RMS Code Sn
 #define EEPROM_RMS_ADDRESS_CONFIGURED_FLAG 0x20 //Address for configured flag
@@ -89,11 +93,13 @@
 const char* TAG = "RMS-Control-Event";
 
 std::vector<TalisRS485TxMessage> userCommand;
-std::vector<uint8_t> addressList;
+std::vector<int> addressList;
 
 QueueHandle_t rs485ReceiverQueue = xQueueCreate(10, sizeof(TalisRS485RxMessage));
+QueueHandle_t idUpdate = xQueueCreate(10, sizeof(int));
 TaskHandle_t rs485ReceiverTaskHandle;
 TaskHandle_t rs485TransmitterTaskHandle;
+TaskHandle_t counterUpdater;
 
 int battRelay = 23;
 int buzzer = 26;
@@ -159,6 +165,8 @@ String hostName = HOST_NAME;
 
 AsyncWebServer server(80);
 TalisRS485Handler talis;
+WiFiSetting wifiSetting;
+TalisMemory talisMemory;
 JsonManager jsonManager;
 RMSManager rmsManager;
 LedAnimation ledAnimation(8,8, true);
@@ -209,6 +217,13 @@ uint16_t subnetOctet[4] = {255, 255, 255, 0};
 uint16_t gServerType = 2;
 uint16_t gMode = 2;
 
+uint8_t id = 1;
+uint8_t command;
+
+bool isAddressing = false;
+bool beginAddressing = false;
+int addressOut = 23;
+
 enum CommandType {
     VCELL = 0,
     TEMP = 1,
@@ -228,23 +243,13 @@ enum CommandType {
     RESTART = 15
 };
 
-namespace Network {
-    enum Server {
-        STATIC = 1,
-        DHCP = 2
-    };
-    enum MODE {
-        AP = 1,
-        STATION = 2
-    };
-};
-
 int dataComplete = 0;
 
 // uint16_t msgCount[16];
-int addressListStorage[12];
+// int addressListStorage[32];
+// Vector<int> addressList(addressListStorage);
+
 uint8_t currentAddrBid;
-Vector<int> addressList(addressListStorage);
 int8_t isDataNormalList[12];
 
 bool balancingCommand = false;
@@ -288,74 +293,14 @@ String serverName = SERVER_NAME;
 String rmsCode = "RMS-32-NA";
 String rackSn = "RACK-32-NA";
 
-uint8_t activeMode;
-
-void setDefaultPreference()
-{
-    String mac = WiFi.macAddress();
-    mac.replace(":", "");
-    String defaultSsid = "ESP32-" + mac;
-    Preferences preferences;
-    preferences.begin("dev_params");
-
-    /**
-     * Store default network setting
-    */
-    preferences.putString("d_ssid", defaultSsid);
-    preferences.putString("d_pass", "esp32-default");
-    preferences.putString("d_ip", "192.168.1.2");
-    preferences.putString("d_gateway", "192.168.1.1");
-    preferences.putString("d_subnet", "255.255.255.0");
-    preferences.putChar("d_server", Network::Server::STATIC);
-    preferences.putChar("d_mode", Network::MODE::AP);
-    preferences.putChar("n_flag", 1); // network flag, 0 to initialize key, 1 to load from default, 2 to load from user
-
-    /**
-     * Store default device parameter setting
-    */
-    preferences.putUShort("d_cdiff", 300);
-    preferences.putUShort("d_cdiff_r", 250);
-    preferences.putUShort("d_coverv", 3700);
-    preferences.putUShort("d_cunderv", 2800);
-    preferences.putUShort("d_cunderv_r", 3000);
-    preferences.putInt("d_covert", 80000);
-    preferences.putInt("d_cundert", 10000);
-    preferences.putChar("p_flag", 1); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
-
-    preferences.end();
-}
-
-void setUserPreference()
-{
-    Preferences preferences;
-    preferences.begin("dev_params");
-
-    /**
-     * Store user network setting
-    */
-    preferences.putString("ssid", "RnD_Sundaya");
-    preferences.putString("pass", "sundaya22");
-    preferences.putString("ip", "192.168.1.2");
-    preferences.putString("gateway", "192.168.1.1");
-    preferences.putString("subnet", "255.255.255.0");
-    preferences.putChar("server", Network::Server::DHCP);
-    preferences.putChar("mode", Network::MODE::STATION);
-    preferences.putChar("n_flag", 1); // network flag, 0 to initialize key, 1 to load from default, 2 to load from user
-
-    /**
-     * Store user device parameter setting
-    */
-    preferences.putUShort("cdiff", 300);
-    preferences.putUShort("cdiff_r", 250);
-    preferences.putUShort("coverv", 3700);
-    preferences.putUShort("cunderv", 2800);
-    preferences.putUShort("cunderv_r", 3000);
-    preferences.putInt("covert", 80000);
-    preferences.putInt("cundert", 10000);
-    preferences.putChar("p_flag", 1); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
-    
-    preferences.end();
-}
+uint8_t commandOrder[6] = {
+    TalisRS485::RequestType::CMSINFO,
+    TalisRS485::RequestType::VCELL,
+    TalisRS485::RequestType::TEMP,
+    TalisRS485::RequestType::VPACK,
+    TalisRS485::RequestType::CMSSTATUS,
+    TalisRS485::RequestType::CMSREADBALANCINGSTATUS
+};
 
 void reInitCellData()
 {
@@ -403,137 +348,21 @@ void declareStruct()
     rmsInfo.rackSn = rackSn;
     rmsInfo.ver = "1.0.0";
     IPAddress defIp(0 ,0, 0, 0);
-    rmsInfo.ip = defIp.toString();
-    switch (activeMode)
-    {
-        case Network::MODE::STATION :
-            rmsInfo.ip = WiFi.localIP().toString();
-        break;
-        case Network::MODE::AP :
-            rmsInfo.ip = WiFi.softAPIP().toString();
-        break;
-        default:
-        break;
-    }
-
+    // rmsInfo.ip = defIp.toString();
+    rmsInfo.ip = wifiSetting.getIp();
     rmsInfo.mac = WiFi.macAddress();
     rmsInfo.deviceTypeName = "RMS";
 
-    for (size_t i = 0; i < 8; i++)
-    {
-        addressList.push_back(i+1);
-    }
+    // for (size_t i = 0; i < 8; i++)
+    // {
+    //     addressList.push_back(i+1);
+    // }
 
     commandStatus.addrCommand = 0;
     commandStatus.alarmCommand = 0;
     commandStatus.dataCollectionCommand = 0;
     commandStatus.sleepCommand = 0;
 
-}
-
-int writeToEeprom(int dataAddress, int flagAddress, String &newName, String &oldName)
-{
-    if(newName.length() < 31) // reserved 1 character for null terminator
-    {
-        if(newName != oldName)
-        {
-            EEPROM.writeString(dataAddress, newName);
-            EEPROM.write(flagAddress, 1);
-            EEPROM.commit();
-            oldName = newName;
-            return 1; //success writing to eeprom
-        }
-        return 0; //if newName is equal to oldName
-    }
-    return -1; //failed to write
-}
-
-template <typename T>
-String arrToStr(T a[], int len)
-{
-    String b;
-    for (size_t i = 0; i < len; i++)
-    {
-        if (i == (len - 1))
-        {
-            b += String(a[i]);
-        }
-        else
-        {
-            b += String(a[i]) + ",";
-        }
-    }
-    return b;
-}
-
-int readAddressingResponse(const String &input)
-{
-    // Serial.println("Read BID STATUS");
-    int status = -1;
-    StaticJsonDocument<32> doc;
-    DeserializationError error = deserializeJson(doc, input);
-
-    if (error) {
-        // Serial.println("Read BID STATUS Error");
-        Serial.print("deserializeJson() failed: ");
-        Serial.println(error.c_str());
-        return status;
-    }
-
-    if (!doc.containsKey("BID_STATUS")) 
-    {
-        return status;
-    }
-    status = doc["BID_STATUS"]; // 1
-    return status;
-}
-
-int readAddressing(const String &input)
-{
-    // Serial.println("Read Addressing");
-    int status = -1;
-    int bid = 0;
-    int respon = 0;
-    StaticJsonDocument<128> doc;
-
-    DeserializationError error = deserializeJson(doc, input);
-
-    if (error) {
-        // Serial.println("Read Addressing Error");
-        Serial.println(input);
-        Serial.print("deserializeJson() failed: ");
-        Serial.println(error.c_str());
-        return status;
-    }
-
-    // JsonObject object = doc.as<JsonObject>();
-    // Serial.println("Read Addressing Deserialize No Error");
-    if(!doc.isNull())
-    {
-        if(doc.containsKey("BID") && doc.containsKey("RESPONSE"))
-        {
-            // Serial.println("Contain BID and RESPONSE");
-            bid = doc["BID"];
-            int respon = doc["RESPONSE"];
-            if (respon > 0)
-            {
-                addressList.push_back(bid);
-                ledAnimation.setLedGroupNumber(addressList.size());
-                status = 1;
-                size_t num = addressList.size();
-                Serial.println("Address number : " + String(num));
-            }
-        }
-        else
-        {
-            return status;
-        }
-    }
-    else
-    {
-        return status;
-    }
-    return status;
 }
 
 int readVcell(const String &input)
@@ -626,7 +455,7 @@ int readVcell(const String &input)
                 Serial.println("Min Vcell : " + String(minVcell));
                 Serial.println("Diff : " + String(diff));
 
-                if (c >= alarmParam.vcell_min && c <= alarmParam.vcell_max) 
+                if (c >= alarmParam.vcell_undervoltage && c <= alarmParam.vcell_overvoltage) 
                 {    
                     if (cellData[startIndex].packStatus.bits.cellUndervoltage)
                     {
@@ -640,9 +469,9 @@ int readVcell(const String &input)
                 }
                 else
                 {
-                    // Serial.println("Vcell min = " + String(alarmParam.vcell_min));
-                    // Serial.println("Vcell max = " + String(alarmParam.vcell_max));
-                    if (c < alarmParam.vcell_min) 
+                    // Serial.println("Vcell min = " + String(alarmParam.vcell_undervoltage));
+                    // Serial.println("Vcell max = " + String(alarmParam.vcell_overvoltage));
+                    if (c < alarmParam.vcell_undervoltage) 
                     {
                         cellData[startIndex].packStatus.bits.cellUndervoltage = 1;
                         isAllDataNormal = false;
@@ -650,7 +479,7 @@ int readVcell(const String &input)
                         undervoltageFlag = true;
                     }
                     
-                    if (c > alarmParam.vcell_max)
+                    if (c > alarmParam.vcell_overvoltage)
                     {
                         cellData[startIndex].packStatus.bits.cellOvervoltage = 1;
                         overvoltageFlag = true;
@@ -688,77 +517,25 @@ int readVcell(const String &input)
         cellData[startIndex].packStatus.bits.cellDiffAlarm = diffVoltageFlag;
         cellData[startIndex].packStatus.bits.cellUndervoltage = undervoltageFlag;
         cellData[startIndex].packStatus.bits.cellOvervoltage = overvoltageFlag;
-
-
         isAllDataNormal = isAllDataNormal & flag;
 
         if (!isAllDataNormal)
         {
-            Serial.println("Vcell Data Abnormal");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 200;
-            cmd.green[position] = 0;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);  
-            // Serial2.print('\n');          
+            ESP_LOGI(TAG,"Vcell Data Abnormal");          
         }
         else 
         {
-            Serial.println("Vcell Data Normal");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 0;
-            cmd.green[position] = 200;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG,"Vcell Data Normal");
         }
 
-        #ifdef AUTO_POST
-            /*
-            docBattery["frame_name"] = cellData[startIndex].frameName;
-            String phpName = "updatecell.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            String httpPostData;
-            serializeJson(docBattery, httpPostData);
-            int httpResponseCode = http.POST(httpPostData);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            Serial.println("berhasil");
-            http.end();
-            */
-        #endif
         updater[startIndex].updateVcell(isAllDataNormal);
-        status = 1;
+        status = bid;
     }
     else
     {
         if(isValidJsonFormat)
         {
-            Serial.println("Cannot Capture Vcell Data");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 127;
-            cmd.green[position] = 127;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG,"Cannot Capture Vcell Data");
         }
     }
     return status;
@@ -828,8 +605,6 @@ int readTemp(const String &input)
     
     if (isAllDataCaptured)
     {
-        Serial.println(alarmParam.temp_max);
-        Serial.println(alarmParam.temp_min);
         int maxTemp = temp[0];
         int minTemp = temp[0];
         for (int32_t temperature : temp)
@@ -858,8 +633,7 @@ int readTemp(const String &input)
 
             if (temperature > alarmParam.temp_max || temperature < alarmParam.temp_min)
             {
-                Serial.println("ABNORMAL");
-                Serial.println(temperature);
+                ESP_LOGI(TAG,"Abnormal temperature : %d\n", temperature);
                 isAllDataNormal = false;
                 flag = false;
                 // break;
@@ -876,94 +650,20 @@ int readTemp(const String &input)
         isAllDataNormal = isAllDataNormal & flag;
         if (isAllDataNormal)
         {
-            Serial.println("Data Temperature Normal");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 0;
-            cmd.green[position] = 200;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG, "Data Temperature Normal");
         }
         else
         {
-            Serial.println("Data Temperature Abnormal");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 200;
-            cmd.green[position] = 0;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG, "Data Temperature Abnormal");
         }
         updater[startIndex].updateTemp(isAllDataNormal);
-        status = 1;
-
-        #ifdef AUTO_POST
-            /*
-            docBattery["frame_name"] = cellData[startIndex].frameName;
-            String phpName = "updatetemperature.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            String httpPostData;
-            serializeJson(docBattery, httpPostData);
-            int httpResponseCode = http.POST(httpPostData);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            Serial.println("berhasil");
-            http.end();
-            */
-        #endif
-        
-        /*
-        String Link;
-        HTTPClient http;
-
-        Link = "http://192.168.2.174/rakbatterybiru/src/logic/bms_temp_update.php?temp=" + String(id) + "," + String(t);
-        // http.begin(client, Link);
-        // http.GET();
-        // http.end();
-        leds[led] = CRGB(10, 202, 9);
-        FastLED.show();
-        Serial.println("TEMP MASUK");
-
-        if (emergency == 8)
-        {
-            Serial2.println("ERROR TONG");
-            digitalWrite(buzzer, LOW);
-            state = 1;
-            alert = 1;
-            BACK = 1;
-            return;
-        }
-        */
+        status = bid;
     }
     else
     {
         if (isValidJsonFormat)
         {
-            Serial.println("Cannot Capture Temperature Data");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 127;
-            cmd.green[position] = 127;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG, "Cannot Capture Temperature Data");
         }
     }
     return status;
@@ -1053,88 +753,20 @@ int readVpack(const String &input)
 
         if(isAllDataNormal)
         {
-            Serial.println("Vpack Data Normal");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 0;
-            cmd.green[position] = 200;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG, "Vpack Data Normal");
         }
         else
         {
-            Serial.println("Vpack Data Abnormal");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 200;
-            cmd.green[position] = 0;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG, "Vpack Data Abnormal");
         }
         updater[startIndex].updateVpack(isAllDataNormal);
-        status = 1;
-
-        #ifdef AUTO_POST
-            /*
-            docBattery["frame_name"] = cellData[startIndex].frameName;
-            String phpName = "updatevpack.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            String httpPostData;
-            serializeJson(docBattery, httpPostData);
-            int httpResponseCode = http.POST(httpPostData);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            Serial.println("berhasil");
-            http.end();
-            */
-        #endif
-
-        /*
-        String Link;
-        HTTPClient http;
-
-        Link = "http://192.168.2.174/rakbatterybiru/src/logic/bms_vpack_update.php?vpack=" + String(id) + "," + String(t);
-        // http.begin(client, Link);
-        // http.GET();
-
-        //        String respon = http.getString();
-        //        Serial.println(respon);
-
-        // http.end();
-        leds[led] = CRGB(10, 202, 9);
-        FastLED.show();
-        Serial.println("VPACK MASUK");
-        */
+        status = bid;
     }
     else
     {
         if (isValidJsonFormat)
         {
-            Serial.println("Cannot Capture Vpack Data");
-            LedCommand cmd;
-            int position = bid - 1;
-            cmd.bid = bid;
-            cmd.ledset = 1;
-            cmd.num_of_led = 8;
-            cmd.red[position] = 127;
-            cmd.green[position] = 127;
-            cmd.blue[position] = 0;
-            // String output = rmsManager.createJsonLedRequest(cmd);
-            // Serial2.print(output);
-            // Serial2.print('\n');
+            ESP_LOGI(TAG, "Cannot Capture Vpack Data");
         }
     }
     return status;
@@ -1394,26 +1026,12 @@ int readCMSInfo(const String &input)
             cellData[startIndex].siteLocation = docBattery["site_location"].as<String>();
             cellData[startIndex].ver = docBattery["ver"].as<String>();
             cellData[startIndex].chip = docBattery["chip"].as<String>();
-            status = 1;
+            status = bid;
         }
         else
         {
             return status;
-        }
-        
-        #ifdef AUTO_POST
-            String phpName = "createdatabase.php";
-            String link = serverName + phpName;
-            HTTPClient http;
-            http.begin(link);
-            http.addHeader("Content-Type", "application/json");
-            int httpResponseCode = http.POST(input);
-            Serial.print("HTTP Response code: ");
-            Serial.println(httpResponseCode);
-            http.end();
-        #endif
-        
-        
+        }      
     }
     return status;
 }
@@ -1496,7 +1114,7 @@ int readCMSBalancingResponse(const String &input)
     {
         cellBalancingStatus[startIndex].cball[i+40] = Utilities::getBit(i, rbal[2]);
     }
-    status = 1;
+    status = bid;
     Serial.println("Balancing Read Success");
     return status;
 }
@@ -1544,368 +1162,11 @@ int readCMSBQStatusResponse(const String &input)
     cellData[startIndex].packStatus.bits.door = door;
     Serial.println("Status Read Success");
     updater[startIndex].updateStatus();
-    #ifdef AUTO_POST
-        /*
-        doc["frame_name"] = cellData[startIndex].frameName;
-        String phpName = "updatewakestatus.php";
-        String link = serverName + phpName;
-        HTTPClient http;
-        http.begin(link);
-        http.addHeader("Content-Type", "application/json");
-        String httpPostData;
-        serializeJson(doc, httpPostData);
-        int httpResponseCode = http.POST(httpPostData);
-        Serial.print("HTTP Response code: ");
-        Serial.println(httpResponseCode);
-        Serial.println("berhasil");
-        http.end();
-        */
-    #endif
-    status = 1;
+    status = bid;
     return status;
 }
 
 
-int sendVcellRequest(int bid)
-{
-    int led = bid - 1;
-    // Serial.println("Request Vcell Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createJsonVcellDataRequest(bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    // Serial.println(output);
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    // Serial.println("End Of Vcell Request");
-    return 1;
-}
-
-int sendTempRequest(int bid)
-{
-    int led = bid - 1;
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createJsonTempDataRequest(bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    // Serial.println(output);
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendVpackRequest(int bid)
-{
-    int led = bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createJsonVpackDataRequest(bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    // Serial.println(output);
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSReadBalancingStatus(int bid)
-{
-    int led = bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSReadBalancingStatus(bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSInfoRequest(int bid)
-{
-    int led = bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSInfoRequest(bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSFrameWriteRequest(FrameWrite frameWrite)
-{
-    int led = frameWrite.bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSFrameWriteIdRequest(frameWrite.bid, frameWrite.frameName);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSCodeWriteRequest(CMSCodeWrite cmsCodeWrite)
-{
-    int led = cmsCodeWrite.bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSCodeWriteRequest(cmsCodeWrite.bid, cmsCodeWrite.cmsCode);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSBaseCodeWriteRequest(BaseCodeWrite baseCodeWrite)
-{
-    int led = baseCodeWrite.bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSBaseCodeWriteRequest(baseCodeWrite.bid, baseCodeWrite.baseCode);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSMcuCodeWriteRequest(McuCodeWrite mcuCodeWrite)
-{
-    int led = mcuCodeWrite.bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSMcuCodeWriteRequest(mcuCodeWrite.bid, mcuCodeWrite.mcuCode);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSSiteLocationWriteRequest(SiteLocationWrite siteLocationWrite)
-{
-    int led = siteLocationWrite.bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSSiteLocationWriteRequest(siteLocationWrite.bid, siteLocationWrite.siteLocation);
-    Serial2.print(output);
-    Serial2.print('\n');
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendBalancingWriteRequest(CellBalancingCommand cellBalancingCommand)
-{
-    int led = cellBalancingCommand.bid - 1;
-    // Serial.println("Request Vpack Data");
-    leds[led] = CRGB(227, 202, 9);
-    FastLED.setBrightness(20);
-    FastLED.show();
-    String output = rmsManager.createCMSWriteBalancingRequest(cellBalancingCommand.bid, cellBalancingCommand.cball);
-    Serial2.print(output);
-    Serial2.print('\n');
-    Serial.println(output);
-    leds[led] = CRGB(129, 141, 214);
-    FastLED.show();
-    return 1;
-}
-
-int sendCMSStatusRequest(int bid)
-{
-    String output = rmsManager.createCMSStatusRequest(bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    return 1;
-}
-
-int sendCMSShutDownRequest(CMSShutDown cmsShutDown)
-{
-    String output = rmsManager.createShutDownRequest(cmsShutDown.bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    return 1;
-}
-
-int sendCMSWakeupRequest(CMSWakeup cmsWakeup)
-{
-    String output = rmsManager.createWakeupRequest(cmsWakeup.bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    return 1;
-}
-
-int sendCMSRestartRequest(CMSRestartCommand cmsResetCommand)
-{
-    String output = rmsManager.createCMSResetRequest(cmsResetCommand.bid);
-    Serial2.print(output);
-    Serial2.print('\n');
-    return 1;
-}
-
-int sendLedRequest(LedCommand ledCommand)
-{
-    String output = rmsManager.createJsonLedRequest(ledCommand);
-    Serial2.print(output);
-    Serial2.print('\n');
-    return 1;
-}
-
-void performAlarm()
-{
-    for (int i = 1; i <= 8; i++)
-    {
-        for (int a = 1; a <= 3; a++)
-        {
-            // docBattery["BID"] = i;
-            // docBattery["SBQ"] = a;
-            // DynamicJsonDocument docBattery(768);
-            String output = rmsManager.createShutDownRequest(i);
-            Serial2.print(output);
-            Serial2.print('\n');
-            // serializeJson(docBattery, Serial2);
-        }
-    }
-}
-
-void getDeviceStatus(int id)
-{
-
-}
-
-void addressingExec()
-{
-    isAddressingCompleted = 0;
-    
-    addressList.clear();
-    for (int i = 0; i < numOfShiftRegister; i++)
-    {
-        bool isRetry = 1;
-        int timeout = 0;
-        uint8_t x = (8 * i) + 7; // 8 is number of shift register output
-        int bid = i + 1; // id start from 1
-        sr.set(x, HIGH);
-        delay(100);
-        sr.set(x, LOW);
-        delay(400);
-        Serial.print("number = ");
-        Serial.println(x);
-        Serial.print("EHUB Number -> BMS === ");
-        Serial.println(bid);
-        // Serial.println(sr.get(x));
-        StaticJsonDocument<128> doc;
-        String output;
-        doc["BID_ADDRESS"] = bid;
-        doc["SR"] = x;
-        serializeJson(doc, output);
-        Serial2.print(output);
-        Serial2.print('\n');
-        Serial.println("===============xxxxxxxxx===========");
-        // delay(200);
-        // sr.setAllLow();
-    }
-    isAddressingCompleted = 1;
-}
-
-void setShiftRegisterState()
-{
-    uint8_t pinValues[numOfShiftRegister] = {B01000000}; //default state, Q6 is set to HIGH because restart is active LOW
-    sr.setAll(pinValues);
-}
-
-void restartCMSViaPin()
-{
-    uint8_t pinValues[numOfShiftRegister] = {B00000000};
-    sr.setAll(pinValues);
-    delay(200);
-    for (size_t i = 0; i < numOfShiftRegister; i++)
-    {
-        pinValues[i] = {B01000000}; //set to default state
-    }
-    sr.setAll(pinValues);
-    delay(200);
-}
-
-String parseconfig(String url)
-{
-    String payload;
-    WiFiClient client;
-    client.connect(host, 80);
-
-    String Link;
-    HTTPClient http;
-
-    Link = url;
-    http.begin(client, Link);
-    int httpCode = http.GET();
-    if (httpCode > 0)
-    {
-        payload = http.getString();
-    }
-    http.end();
-    return payload;
-}
-
-void evalCommand(String input)
-{
-    if (input == "readcell")
-    {
-        sendVcellRequest(1);
-    }
-    else if (input == "readtemp")
-    {
-        sendTempRequest(1);
-    }
-    else if (input == "readvpack")
-    {
-        sendVpackRequest(1);
-    }
-    else if (input == "startdata")
-    {
-        dataCollectionCommand.exec = true;
-    }
-    else if (input == "stopdata")
-    {
-        dataCollectionCommand.exec = false;
-    }
-    else if (input == "startaddress")
-    {
-        addressingCommand.exec = true;
-    }
-    else if (input == "restartcms")
-    {
-        Serial.println("Restarting CMS");
-        dataCollectionCommand.exec = false;
-        cmsRestartCommand.bid = 255;
-        cmsRestartCommand.restart = 1;
-        ledAnimation.restart();
-        // restartCMSViaPin();
-    }
-}
 
 void convertLedDataToLedCommand(const LedData &ledData, LedCommand &ledCommand)
 {
@@ -1920,178 +1181,12 @@ void convertLedDataToLedCommand(const LedData &ledData, LedCommand &ledCommand)
     }
 }
 
-int sendRequest(int bid, int sequence)
-{
-    int status = 0;
-    LedData ledData;
-    LedCommand _ledCommand;
-    switch(sequence) {
-    case VCELL:
-        sendVcellRequest(bid);
-        status = 1;
-        break;
-    case TEMP:
-        sendTempRequest(bid);
-        status = 1;
-        break;
-    case VPACK:
-        sendVpackRequest(bid);
-        status = 1;
-        break;  
-    case CMSSTATUS:
-        sendCMSStatusRequest(bid);
-        status = 1;
-        break;
-    case CMSREADBALANCINGSTATUS:
-        sendCMSReadBalancingStatus(bid);
-        status = 1;
-        break;
-    case LED:
-        if (ledAnimation.isRunning())
-        {
-            ledData = ledAnimation.update();
-            if(ledData.currentGroup >= 0)
-            {
-                convertLedDataToLedCommand(ledData, _ledCommand);
-            }
-            sendLedRequest(_ledCommand); //local variable ledCommand
-        }
-        else
-        {
-            sendLedRequest(ledCommand); //global variable ledCommand
-        }
-        status = 1;
-        break;
-    case CMSINFO:
-        sendCMSInfoRequest(bid);
-        status = 1;
-        break;   
-    case CMSFRAMEWRITE:
-        sendCMSFrameWriteRequest(frameWrite);
-        status = 1;
-        break;
-    case CMSCODEWRITE:
-        sendCMSCodeWriteRequest(cmsCodeWrite);
-        status = 1;
-        break;
-    case CMSBASECODEWRITE:
-        sendCMSBaseCodeWriteRequest(baseCodeWrite);
-        status = 1;
-        break;
-    case CMSMCUCODEWRITE:
-        sendCMSMcuCodeWriteRequest(mcuCodeWrite);
-        status = 1;
-        break;
-    case CMSSITELOCATIONWRITE:
-        sendCMSSiteLocationWriteRequest(siteLocationWrite);
-        status = 1;
-        break;
-    case BALANCINGWRITE:
-        sendBalancingWriteRequest(cellBalancingCommand);
-        status = 1;
-        break;
-    case SHUTDOWN:
-        sendCMSShutDownRequest(cmsShutDown);
-        status = 1;
-        break;  
-    case WAKEUP:
-        sendCMSWakeupRequest(cmsWakeup);
-        status = 1;
-        break;
-    case RESTART:
-        sendCMSRestartRequest(cmsRestartCommand);
-        status = 1;
-        break;
-    }
-    return status;
-}
-
-int checkResponse(const String &input)
-{
-    int status = 0;
-    Serial.println(input);
-    if(readVcell(input) >= 0)
-    {
-        // Serial.println("VCELL");
-        status = 1;
-    }
-    else if (readTemp(input) >= 0)
-    {
-        // Serial.println("TEMP");
-        status = 1;
-    }
-    else if (readVpack(input) >= 0)
-    {
-        // Serial.println("VPACK");
-        status = 1;
-    }
-    else if (readCMSInfo(input) >= 0)
-    {
-        // Serial.println("CMSINFO");
-        status = 1;
-    }
-    else if (readFrameWriteResponse(input) >= 0)
-    {
-        // Serial.println("FRAME");
-        status = 1;
-    }
-    else if (readCMSCodeWriteResponse(input) >= 0)
-    {
-        // Serial.println("FRAME");
-        status = 1;
-    }
-    else if (readCMSBaseCodeWriteResponse(input) >= 0)
-    {
-        // Serial.println("FRAME");
-        status = 1;
-    }
-    else if (readCMSMcuCodeWriteResponse(input) >= 0)
-    {
-        // Serial.println("FRAME");
-        status = 1;
-    }
-    else if (readCMSSiteLocationWriteResponse(input) >= 0)
-    {
-        // Serial.println("FRAME");
-        status = 1;
-    }
-    else if (readCMSBalancingResponse(input) >= 0)
-    {
-        // Serial.println("BAL");
-        status = 1;
-    }
-    else if (readCMSBQStatusResponse(input) >= 0)
-    {
-        // Serial.println("BQSTAT");
-        status = 1;
-    }
-    else if (readLed(input) >= 0)
-    {
-        // Serial.println("LED");
-        status = 1;
-    }
-    else if (readAddressing(input) >= 0)
-    {
-        // Serial.println("ADDRESS RESPONSE");
-        status = 1;
-    }
-    else if(readAddressingResponse(input) >= 0)
-    {
-        // Serial.println("ADDRESS STATUS");
-        status = 1;
-    }
-    return status;
-}
-
 void addressing(bool isFromBottom)
 {
-    isAddressingCompleted = 0;
-    int bidAddr = 1; // bid address start from 1
     addressList.clear();
-    for (int i = 0; i < numOfShiftRegister; i++)
+    for (size_t i = 0; i < numOfShiftRegister; i++)
     {
-        bool isDataComplete = false;
-        String serialData;
+        ESP_LOGI(TAG, "Increment : %d\n", i);
         uint8_t x;
         if(isFromBottom)
         {
@@ -2099,82 +1194,18 @@ void addressing(bool isFromBottom)
         }
         else
         {
-            x = (8 * i) + 7;
+            x = (numOfShiftRegister * i) + 7;
         }
-        
-        Serial.print("number = ");
-        Serial.println(x);
+        int bid = i + 1; // id start from 1
         sr.set(x, HIGH);
-        digitalWrite(internalLed,HIGH);
-        delay(200);
-        sr.set(x, LOW);
-        digitalWrite(internalLed,LOW);
-        delay(200);
-        
-        while (Serial2.available()) //get for the response {"BID_STATUS" : 1}
-        {
-            char in = Serial2.read();
-            if (in == '\n')
-            {
-                isDataComplete = true;
-            }
-            else
-            {
-                serialData += in;
-            }
-        }
-        
-        if (isDataComplete)
-        {
-            // Serial.println(serialData);
-            if(checkResponse(serialData)) //if the response {"BID_STATUS" : 1}
-            {
-                StaticJsonDocument<128> doc;
-                String output;
-                doc["BID_ADDRESS"] = bidAddr;
-                doc["SR"] = x;
-                serializeJson(doc, output);
-                Serial2.print(output);
-                Serial2.print('\n');
-                Serial.print("EHUB Number -> BMS === ");
-                Serial.println(bidAddr);
-                bidAddr++;
-            }
-        }
-        else
-        {
-            Serial.println("No Response, Skip!");
-            continue;
-        }
-        serialData = "";
-        isDataComplete = false;
         delay(100);
-
-        while (Serial2.available()) //check the addressing response {"BID" : n, "RESPONSE" : 1}
-        {
-            char in = Serial2.read();
-            if (in == '\n')
-            {
-                isDataComplete = true;
-            }
-            else
-            {
-                serialData += in;
-            }
-        }
-        
-        if (isDataComplete)
-        {
-            // Serial.println(serialData);
-            checkResponse(serialData);
-        }
-        Serial.println("===============xxxxxxxxx===========");
-        // Serial.println(sr.get(x));
-        // delay(200);
-        // sr.setAllLow();
-    }
-    isAddressingCompleted = 1;
-    digitalWrite(internalLed,HIGH);
+        sr.set(x, LOW);
+        delay(400);
+        digitalWrite(addressOut, LOW);
+        delay(100);
+        digitalWrite(addressOut, HIGH);
+        while(talis.handleAddressing());
+    } 
 }
 
 void handleSketchDownload(const OtaParameter &otaParameter) {
@@ -2278,7 +1309,7 @@ ModbusMessage FC16(ModbusMessage request) {
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.print("Connected to ");
-    Serial.println(ssid);
+    Serial.println(WiFi.SSID());
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     rmsInfo.ip = WiFi.localIP().toString();
@@ -2292,9 +1323,6 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.println(WiFi.dnsIP(1));
     Serial.print("Hostname: ");
     Serial.println(WiFi.getHostname());
-    leds[9] = CRGB::LawnGreen;
-    FastLED.setBrightness(20);
-    FastLED.show();
     digitalWrite(internalLed, HIGH);
 }
 
@@ -2377,6 +1405,19 @@ void IRAM_ATTR onTimer()
            
 }
 
+void onDataCb(TalisRS485RxMessage msg, uint32_t token)
+{
+  xQueueSend(rs485ReceiverQueue, &msg, 0);
+}
+
+void onErrorCb(TalisRS485::Error errorCode, uint32_t token)
+{
+  TalisRS485RxMessage msg;
+  msg.token = token;
+  msg.error = errorCode;
+  xQueueSend(rs485ReceiverQueue, &msg, 0);
+}
+
 void addressingHandler(TalisRS485Handler &talis, const TalisRS485RxMessage &data, uint8_t &currentAddrBid)
 {
   const char* TAG = "Addressing handler";
@@ -2417,46 +1458,83 @@ void addressingHandler(TalisRS485Handler &talis, const TalisRS485RxMessage &data
 
 void rs485ReceiverTask(void *pv)
 {
-  const char* TAG = "RS485 Receiver Task";
-  esp_log_level_set(TAG, ESP_LOG_VERBOSE);
+    const char* TAG = "RS485 Receiver Task";
+    esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  while (1)
-  {
-    TalisRS485RxMessage msgBuffer;
-    if (xQueueReceive(rs485ReceiverQueue, &msgBuffer, portMAX_DELAY) == pdTRUE)
-    {  
-      ESP_LOGV(TAG, "Serial incoming");
-      ESP_LOGV(TAG, "Message token : %d\n", msgBuffer.token);
-      if (msgBuffer.token >= 1000 && msgBuffer.token < 2000)
-      {
-        ESP_LOGV(TAG, "command from user");
-      }
-      
-      if (msgBuffer.dataLength < 0)
-      {
-        ESP_LOGV(TAG, "Error on received");
-        switch (msgBuffer.error)
-        {
-        case TalisRS485::Error::NO_TERMINATE_CHARACTER :
-          ESP_LOGV(TAG, "No terminate character found");
-          break;
-        case TalisRS485::Error::TIMEOUT :
-          ESP_LOGV(TAG, "Timeout");
-          break;
-        case TalisRS485::Error::BUFFER_OVF :
-          ESP_LOGV(TAG, "Buffer Overflow");
-        default:
-          break;
+    while (1)
+    {
+        TalisRS485RxMessage msgBuffer;
+        if (xQueueReceive(rs485ReceiverQueue, &msgBuffer, portMAX_DELAY) == pdTRUE)
+        {  
+            ESP_LOGI(TAG, "Serial incoming");
+            ESP_LOGI(TAG, "Message token : %d\n", msgBuffer.token);
+            if (msgBuffer.token >= 1000 && msgBuffer.token < 2000)
+            {
+                ESP_LOGI(TAG, "command from user");
+            }
+            
+            if (msgBuffer.dataLength < 0)
+            {
+                ESP_LOGI(TAG, "Error on received");
+                switch (msgBuffer.error)
+                {
+                    case TalisRS485::Error::NO_TERMINATE_CHARACTER :
+                        ESP_LOGI(TAG, "No terminate character found");
+                    break;
+                    case TalisRS485::Error::TIMEOUT :
+                        ESP_LOGI(TAG, "Timeout");
+                    break;
+                    case TalisRS485::Error::BUFFER_OVF :
+                        ESP_LOGI(TAG, "Buffer Overflow");
+                    default:
+                    break;
+                }
+            }
+            else
+            {
+                size_t arrSize = msgBuffer.rxData.size();
+                char c[arrSize];
+                memcpy(c, msgBuffer.rxData.data(), arrSize);
+                int bid;
+                switch (msgBuffer.token)
+                {
+                case TalisRS485::RequestType::CMSINFO :
+                    ESP_LOGI(TAG, "reading cms info");
+                    readCMSInfo(String(c));
+                    break;
+                case TalisRS485::RequestType::VCELL :
+                    ESP_LOGI(TAG, "reading vcell");
+                    bid = readVcell(String(c));
+                    xQueueSend(idUpdate, &bid, 0);
+                    break;
+                case TalisRS485::RequestType::TEMP :
+                    ESP_LOGI(TAG, "reading temperature");
+                    bid = readTemp(String(c));
+                    xQueueSend(idUpdate, &bid, 0);
+                    break;
+                case TalisRS485::RequestType::VPACK :
+                    ESP_LOGI(TAG, "reading vpack");
+                    bid = readVpack(String(c));
+                    break;
+                case TalisRS485::RequestType::CMSSTATUS :
+                    ESP_LOGI(TAG, "reading status");
+                    bid = readCMSBQStatusResponse(String(c));
+                    xQueueSend(idUpdate, &bid, 0);
+                    break;
+                case TalisRS485::RequestType::CMSREADBALANCINGSTATUS :
+                    ESP_LOGI(TAG, "reading balancing status");
+                    readCMSBQStatusResponse(String(c));
+                    break;
+                default:
+                    addressingHandler(talis, msgBuffer, currentAddrBid);
+                    break;
+                }
+                
+                ESP_LOGI(TAG, "Length : %d\n", msgBuffer.dataLength);
+                ESP_LOG_BUFFER_CHAR(TAG, msgBuffer.rxData.data(), msgBuffer.dataLength);
+            }
         }
-      }
-      else
-      {
-        addressingHandler(talis, msgBuffer, currentAddrBid);
-        ESP_LOGV(TAG, "Length : %d\n", msgBuffer.dataLength);
-        ESP_LOG_BUFFER_CHAR(TAG, msgBuffer.rxData, msgBuffer.dataLength);
-      }
     }
-  }
 }
 
 
@@ -2473,46 +1551,73 @@ void rs485TransmitterTask(void *pv)
   }
 }
 
+void updaterTask(void *pv)
+{
+    UBaseType_t uxHighWaterMark;
+    const char* TAG = "Message Counter Updater Task";
+    esp_log_level_set(TAG, ESP_LOG_VERBOSE);
+    uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+    while (1)
+    {
+        int buff;
+        if (xQueueReceive(idUpdate, &buff, portMAX_DELAY) == pdTRUE)
+        { 
+            int index = buff - 1;
+            if (buff != 0)
+            {
+                if (updater[index].isUpdate())
+                {
+                    isDataNormalList[index] = updater[index].isDataNormal(); 
+                    cellData[index].msgCount++;
+                    updater[index].resetUpdater();
+                }
+            }
+        }
+    }
+}
+
 
 void setup()
 {
     // nvs_flash_erase(); // erase the NVS partition and...
     // nvs_flash_init(); // initialize the NVS partition.
     // while(true);
+    addressList.reserve(12);
     userCommand.reserve(5);
-    addressList.reserve(32);
     xTaskCreate(rs485ReceiverTask, "RS485 Receiver Task", 4096, NULL, 10, &rs485ReceiverTaskHandle);
     xTaskCreate(rs485TransmitterTask, "RS485 Transmitter Task", 4096, NULL, 5, &rs485TransmitterTaskHandle);
+    xTaskCreate(updaterTask, "Message Counter Updater Task", 4096, NULL, 5, &counterUpdater);
     Serial.begin(115200); 
     Serial.setDebugOutput(true);
     esp_log_level_set(TAG, ESP_LOG_INFO);
     ESP_LOGI(TAG, "Test ESP_LOGI");
 
-    Preferences preferences;
-    preferences.begin("dev_params");
-    // preferences.putChar("n_flag", 0);
-    // preferences.putChar("p_flag", 0);
-    uint8_t nFlag = preferences.getChar("n_flag");
-    uint8_t pFlag = preferences.getChar("p_flag");
-    Serial.println("n_flag : " + String(nFlag));
-    Serial.println("p_flag : " + String(pFlag));
-    preferences.end();
-    if ((nFlag == 0) || (pFlag == 0))
-    {
-        Serial.println("Initialized default and user value");
-        setDefaultPreference();
-        setUserPreference();
-    }
+    TalisDefinition::Params params;
+    String macString = WiFi.macAddress();
+    macString.replace(":", "");
+    params.ssid = "ESP32-" + macString;
+    params.pass = "esp32-default";
+    params.mode = mode_type::AP;
+    params.server = server_type::STATIC;
+    talisMemory.begin("talis_param", params);
+    // talisMemory.reset();
+    talisMemory.print();
+    rmsCode = talisMemory.getRmsName();
+    rackSn = talisMemory.getRackSn();
+    // while(1);
 
-    // preferences.begin("dev_params");
-    // preferences.putChar("n_flag", 2);
-    // preferences.putChar("p_flag", 2);
-    // preferences.end();
+    alarmParam.vcell_diff = talisMemory.getCellDifference();
+    alarmParam.vcell_diff_reconnect = talisMemory.getCellDifferenceReconnect();
+    alarmParam.vcell_overvoltage = talisMemory.getCellOvervoltage();
+    alarmParam.vcell_undervoltage = talisMemory.getCellUndervoltage();
+    alarmParam.vcell_reconnect = talisMemory.getCellUndervoltageReconnect();
+    alarmParam.temp_max = talisMemory.getCellOvertemperature();
+    alarmParam.temp_min = talisMemory.getCellUndertemperature();
 
     settingRegisters.link(&alarmParam.vcell_diff, 0);
     settingRegisters.link(&alarmParam.vcell_diff_reconnect, 1);
-    settingRegisters.link(&alarmParam.vcell_max, 2);
-    settingRegisters.link(&alarmParam.vcell_min, 3);
+    settingRegisters.link(&alarmParam.vcell_overvoltage, 2);
+    settingRegisters.link(&alarmParam.vcell_undervoltage, 3);
     settingRegisters.link(&alarmParam.vcell_reconnect, 4);
     uint16_t *ptr = reinterpret_cast<uint16_t*>(&alarmParam.temp_max);
     settingRegisters.link(ptr+1, 5); // MSB
@@ -2538,7 +1643,7 @@ void setup()
     settingRegisters.link(&gMode, 39);
     settingRegisters.link(&saveNetwork, 40);    
     
-    bool *boolPtr = reinterpret_cast<bool*>(&addressingCommand.exec);
+    bool *boolPtr = reinterpret_cast<bool*>(&isAddressing);
     mbusCoilData.link(boolPtr, 0);
     boolPtr = reinterpret_cast<bool*>(&dataCollectionCommand.exec);
     mbusCoilData.link(boolPtr, 1);
@@ -2570,237 +1675,63 @@ void setup()
     startButton.attachLongPressStart(buttonLongPressed);
     // startButton.attachDoubleClick(buttonDoubleClicked);
     startButton.setDebounceTicks(50);
-    EEPROM.begin(256);
-    if(EEPROM.read(EEPROM_RMS_ADDRESS_CONFIGURED_FLAG) == 1)
-    {
-        rmsCode = EEPROM.readString(EEPROM_RMS_CODE_ADDRESS);
-    }
-
-    if(EEPROM.read(EEPROM_RACK_SN_CONFIGURED_FLAG) == 1)
-    {
-        rackSn = EEPROM.readString(EEPROM_RACK_SN_ADDRESS);
-    }
     myTimer = timerBegin(0, 80, true);
     timerAttachInterrupt(myTimer, &onTimer, true);
     timerAlarmWrite(myTimer, 500000, true);
     pinMode(battRelay, OUTPUT);
     pinMode(buzzer, OUTPUT);
     pinMode(internalLed, OUTPUT);
+    pinMode(addressOut, OUTPUT);
+    digitalWrite(addressOut, HIGH);
     
-
     Serial2.setRxBufferSize(1024);
     Serial2.begin(115200);
+    talis.onDataHandler(onDataCb);
+    talis.onErrorHandler(onErrorCb);
+    talis.begin(&Serial2, true, '\n');
+    // talis.begin(&Serial2);
+    talis.setTimeout(500);
+
     FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
     WiFi.disconnect(true);
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.mode(WIFI_MODE_NULL);
     delay(100);
-    WiFi.setHostname(hostName.c_str());
-    // WiFi.mode(WIFI_STA);
-
-    String networkSsid;
-    String pwd;
-    IPAddress ipAddr;
-    IPAddress gatewayAddr;
-    IPAddress subnetAddr;
-    uint8_t mode;
-    uint8_t serverType;
-
-    /**
-     * Copy value from flash memory into variable
-    */
-    preferences.begin("dev_params" , 1);
-    networkSsid = preferences.getString("ssid");
-    pwd = preferences.getString("pass");
-    ipAddr.fromString(preferences.getString("ip"));
-    gatewayAddr.fromString(preferences.getString("gateway"));
-    subnetAddr.fromString(preferences.getString("subnet"));
-    serverType = preferences.getChar("server");
-    mode = preferences.getChar("mode");
-
-    uint16_t temp[8];
-    size_t resultLength = Utilities::toDoubleChar(networkSsid, ssidArr, 8, true);
-    resultLength = Utilities::toDoubleChar(pwd, passArr, 8, true);
-
-    for (size_t i = 0; i < 4; i++)
-    {
-        ipOctet[i] = ipAddr[i];
-        gatewayOctet[i] = gatewayAddr[i];
-        subnetOctet[i] = subnetAddr[i];
-    }
-
-    gServerType = serverType;
-    gMode = mode;
-    preferences.end();
-    delay(50);
-    
-    preferences.begin("dev_params" , 1);
-
-    /**
-     * check parameter flag set
-    */
-    // Serial.println("p_flag = " + String(preferences.getChar("p_flag")));
-    if (preferences.getChar("p_flag") == 1) // load from default setting
-    {
-        Serial.println("Load default parameter setting");
-        alarmParam.vcell_diff = preferences.getUShort("d_cdiff");
-        alarmParam.vcell_diff_reconnect = preferences.getUShort("d_cdiff_r");
-        alarmParam.vcell_max = preferences.getUShort("d_coverv");
-        alarmParam.vcell_min = preferences.getUShort("d_cunderv");
-        alarmParam.vcell_reconnect = preferences.getUShort("d_cunderv_r");
-        alarmParam.temp_max = preferences.getInt("d_covert");
-        alarmParam.temp_min = preferences.getInt("d_cundert");
-    }
-    else // load from user setting
-    {
-        Serial.println("Load user parameter setting");
-        alarmParam.vcell_diff = preferences.getUShort("cdiff");
-        alarmParam.vcell_diff_reconnect = preferences.getUShort("cdiff_r");
-        alarmParam.vcell_max = preferences.getUShort("coverv");
-        alarmParam.vcell_min = preferences.getUShort("cunderv");
-        alarmParam.vcell_reconnect = preferences.getUShort("cunderv_r");
-        alarmParam.temp_max = preferences.getInt("covert");
-        alarmParam.temp_min = preferences.getInt("cundert");
-    }    
-
-    /**
-     * Check network flag set
-    */
-    if (preferences.getChar("n_flag") == 1) // load from default setting
-    {
-        Serial.println("Load default network setting");
-        networkSsid = preferences.getString("d_ssid");
-        pwd = preferences.getString("d_pass");
-        ipAddr.fromString(preferences.getString("d_ip"));
-        gatewayAddr.fromString(preferences.getString("d_gateway"));
-        subnetAddr.fromString(preferences.getString("d_subnet"));
-        serverType = preferences.getChar("d_server");
-        mode = preferences.getChar("d_mode");
-        // Serial.println("=====Default=====");
-        // Serial.println("SSID : " + ssid);
-        // Serial.println("Pass : " + password);
-        // Serial.println("Ip : " + ipAddress);
-        // Serial.println("Gateway : " + gateways);
-        // Serial.println("Subnet : " + subnets);
-        switch (mode)
-        {
-            case Network::MODE::AP :
-                Serial.println("Default AP");
-                WiFi.mode(WIFI_AP);
-            break;
-            case Network::MODE::STATION :
-                Serial.println("Default Station");
-                WiFi.mode(WIFI_STA);
-            break;
-            default:
-            break;
-        }
-
-        switch (serverType)
-        {
-            case Network::Server::STATIC :
-            // Serial.println("Default Static");
-
-            if (mode == Network::MODE::STATION)
-            {
-                if (!WiFi.config(ipAddr, gatewayAddr, subnetAddr))
-                {
-                    Serial.println("STA Failed to configure");
-                }
-            }
-            else
-            {
-                if (!WiFi.softAPConfig(ipAddr, gatewayAddr, subnetAddr))
-                {
-                    Serial.println("AP Failed to configure");
-                }
-            }
-            break;
-
-            case Network::Server::DHCP :
-                // Serial.println("Default Dynamic");
-            break;
-            
-            default:
-            break;
-        }
-    }
-    else // load from user setting
-    {
-        Serial.println("Load user network setting");
-        networkSsid = preferences.getString("ssid");
-        pwd = preferences.getString("pass");
-        ipAddr.fromString(preferences.getString("ip"));
-        gatewayAddr.fromString(preferences.getString("gateway"));
-        subnetAddr.fromString(preferences.getString("subnet"));
-        serverType = preferences.getChar("server");
-        mode = preferences.getChar("mode");
-
-        // settingRegisters.setBulk(18, temp, resultLength);
-        // Serial.println("=====User=====");
-        // Serial.println("SSID : " + ssid);
-        // Serial.println("Pass : " + password);
-        // Serial.println("Ip : " + ipAddress);
-        // Serial.println("Gateway : " + gateways);
-        // Serial.println("Subnet : " + subnets);
-        switch (mode)
-        {
-            case Network::MODE::AP :
-                // Serial.println("User AP");
-                WiFi.mode(WIFI_AP);
-            break;
-            case Network::MODE::STATION :
-                // Serial.println("User Station");
-                WiFi.mode(WIFI_STA);
-            break;
-            default:
-            break;
-        }
-
-        switch (serverType)
-        {
-            case Network::Server::STATIC :
-                if (!WiFi.config(ipAddr, gatewayAddr, subnetAddr))
-                {
-                    Serial.println("STA Failed to configure");
-                }
-            break;
-            case Network::Server::DHCP :
-                // Serial.println("User Dynamic");
-            break;
-            
-            default:
-            break;
-        }
-    }
-    
-    preferences.end();  
-    // delay(50);
-    // Serial.println("end of load network setting");  
-
-    #ifdef DEBUG_STATIC    
-        if (!WiFi.config(local_ip, gateway, subnet))
-        {
-            Serial.println("STA Failed to configure");
-        }
-    #endif
+    WiFi.setHostname("ESP32-Talis");       
     
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     // WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-    Serial.print("Try connecting to ");
-    Serial.println(networkSsid); 
+    WifiParams wifiParams;
+
+    wifiParams.mode = talisMemory.getMode();
+
+    wifiParams.params.server = talisMemory.getServer();
+    strcpy(wifiParams.params.ssid.data(), talisMemory.getSsid().c_str());
+    strcpy(wifiParams.params.pass.data(), talisMemory.getPass().c_str());
+    strcpy(wifiParams.params.ip.data(), talisMemory.getIp().c_str());
+    strcpy(wifiParams.params.gateway.data(), talisMemory.getGateway().c_str());
+    strcpy(wifiParams.params.subnet.data(), talisMemory.getSubnet().c_str());
+
+    wifiParams.softApParams.server = server_type::STATIC;
+    strcpy(wifiParams.softApParams.ssid.data(), params.ssid.c_str());
+    strcpy(wifiParams.softApParams.pass.data(), params.pass.c_str());
+    strcpy(wifiParams.softApParams.ip.data(), "192.168.4.1");
+    strcpy(wifiParams.softApParams.gateway.data(), "192.168.4.1");
+    strcpy(wifiParams.softApParams.subnet.data(), "255.255.255.0");
+    
+    wifiSetting.begin(wifiParams);
 
     int timeout = 0;
-    if (mode == Network::MODE::STATION)
+    
+    if (wifiSetting.getMode() == mode_type::STATION || wifiSetting.getMode() == mode_type::AP_STATION)
     {
-        WiFi.begin(networkSsid, pwd);
         while (WiFi.status() != WL_CONNECTED)
         {
             if (timeout >= 10)
             {
-                Serial.println("Failed to connect into " + networkSsid);
+                Serial.println("Failed to connect into " + wifiSetting.getSsid());
                 break;
             }
             Serial.print(".");
@@ -2808,48 +1739,46 @@ void setup()
             timeout++;
         }
     }
-    else
+    
+    if (wifiSetting.getMode() == mode_type::AP)
     {
-        WiFi.softAP(networkSsid, pwd);
         Serial.println("AP Connected");
         Serial.print("SSID : ");
-        Serial.println(networkSsid);
+        Serial.println(WiFi.softAPSSID());
         Serial.print("IP address: ");
         Serial.println(WiFi.softAPIP().toString());
         Serial.print("Subnet Mask: ");
-        Serial.println(subnetAddr);
-        Serial.print("Gateway IP: ");
-        Serial.println(gatewayAddr);
+        Serial.println(WiFi.softAPSubnetMask().toString());
         Serial.print("Hostname: ");
         Serial.println(WiFi.softAPgetHostname());
         digitalWrite(internalLed, HIGH);
     }
+    else if (wifiSetting.getMode() == mode_type::AP_STATION)
+    {
+        Serial.println("AP SSID : ");
+        Serial.println(WiFi.softAPSSID());
+        Serial.print("IP address: ");
+        Serial.println(WiFi.softAPIP().toString());
+        Serial.print("Hostname: ");
+        Serial.println(WiFi.softAPgetHostname());
+    }
 
     delay(100); //wait a bit to stabilize voltage and current
-    if (!MDNS.begin(hostName.c_str())) {             // Start the mDNS responder for esp8266.local
+    if (!MDNS.begin(rackSn)) {             // Start the mDNS responder for esp8266.local
         Serial.println("Error setting up MDNS responder!");
     }
     Serial.println("mDNS responder started");
     delay(100);
-    // Wire.begin(I2C_SDA, I2C_SCL);
-    // lcd.init();
-    // lcd.backlight();    
-    // lcd.clear();
 
     if (timeout >= 10)
     {
         Serial.println("WiFi Not Connected");
         digitalWrite(internalLed, LOW);
     }
-
-    activeMode = mode;
     
-
     timerAlarmEnable(myTimer);
     delay(100); //wait a bit to stabilize the voltage and current consumption
     digitalWrite(battRelay, HIGH);
-    // digitalWrite(relay[1], HIGH);
-    // setShiftRegisterState();
     #ifdef HARDWARE_ALARM
         hardwareAlarm.enable = 1;
     #endif
@@ -2978,17 +1907,21 @@ void setup()
     {
       Serial.println("Get connected network info");
       NetworkSetting s;
-      switch (activeMode)
+      switch (wifiSetting.getMode())
       {
-      case Network::MODE::STATION :
-        s.ssid = WiFi.SSID();
-        s.ip = WiFi.localIP().toString();
+        case mode_type::STATION :
+            s.ssid = WiFi.SSID();
+            s.ip = WiFi.localIP().toString();
         break;
-      case Network::MODE::AP :
-        s.ssid = WiFi.softAPSSID();
-        s.ip = WiFi.softAPIP().toString();
+        case mode_type::AP :
+            s.ssid = WiFi.softAPSSID();
+            s.ip = WiFi.softAPIP().toString();
         break;
-      default:
+        case mode_type::AP_STATION :
+            s.ssid = WiFi.SSID();
+            s.ip = WiFi.localIP().toString();
+        break;
+        default:
         break;
       }
       request->send(200, "application/json", jsonManager.getNetworkInfo(s)); });
@@ -2997,32 +1930,46 @@ void setup()
     {
       Serial.println("Get user network setting info");
       NetworkSetting s;
-      Preferences preferences;    
-      preferences.begin("dev_params");
-      s.ssid = preferences.getString("ssid");
-      s.pass = preferences.getString("pass");
-      s.ip = preferences.getString("ip");
-      s.gateway = preferences.getString("gateway");
-      s.subnet = preferences.getString("subnet");
-      s.mode = preferences.getChar("mode");
-      s.server = preferences.getChar("server");
-      preferences.end();
+      s.ssid = talisMemory.getSsid();
+      s.pass = talisMemory.getPass();
+      s.ip = talisMemory.getIp();
+      s.gateway = talisMemory.getGateway();
+      s.subnet = talisMemory.getSubnet();
+      s.mode = talisMemory.getMode();
+      s.server = talisMemory.getServer();
+    //   Preferences preferences;    
+    //   preferences.begin("dev_params");
+    //   s.ssid = preferences.getString("ssid");
+    //   s.pass = preferences.getString("pass");
+    //   s.ip = preferences.getString("ip");
+    //   s.gateway = preferences.getString("gateway");
+    //   s.subnet = preferences.getString("subnet");
+    //   s.mode = preferences.getChar("mode");
+    //   s.server = preferences.getChar("server");
+    //   preferences.end();
       request->send(200, "application/json", jsonManager.getUserNetworkSetting(s)); });
 
     server.on("/get-user-alarm-setting", HTTP_GET, [](AsyncWebServerRequest *request)
     {
-        Serial.println("Get user alarm setting info");
-        Preferences preferences;      
+        Serial.println("Get user alarm setting info");      
         AlarmParam alm;
-        preferences.begin("dev_params", 1);
-        alm.vcell_diff = preferences.getUShort("cdiff");
-        alm.vcell_diff_reconnect = preferences.getUShort("cdiff_r");
-        alm.vcell_max = preferences.getUShort("coverv");
-        alm.vcell_min = preferences.getUShort("cunderv");
-        alm.vcell_reconnect = preferences.getUShort("cunderv_r");
-        alm.temp_max = preferences.getInt("covert");
-        alm.temp_min = preferences.getInt("cundert");
-        preferences.end();
+        alm.vcell_diff = talisMemory.getCellDifference();
+        alm.vcell_diff_reconnect = talisMemory.getCellDifferenceReconnect();
+        alm.vcell_overvoltage = talisMemory.getCellOvervoltage();
+        alm.vcell_undervoltage = talisMemory.getCellUndervoltage();
+        alm.vcell_reconnect = talisMemory.getCellUndervoltageReconnect();
+        alm.temp_max = talisMemory.getCellOvertemperature();
+        alm.temp_min = talisMemory.getCellUndertemperature();
+
+        // preferences.begin("dev_params", 1);
+        // alm.vcell_diff = preferences.getUShort("cdiff");
+        // alm.vcell_diff_reconnect = preferences.getUShort("cdiff_r");
+        // alm.vcell_overvoltage = preferences.getUShort("coverv");
+        // alm.vcell_undervoltage = preferences.getUShort("cunderv");
+        // alm.vcell_reconnect = preferences.getUShort("cunderv_r");
+        // alm.temp_max = preferences.getInt("covert");
+        // alm.temp_min = preferences.getInt("cundert");
+        // preferences.end();
         request->send(200, "application/json", jsonManager.getUserAlarmSetting(alm)); });
 
     server.on("/post-test", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -3044,7 +1991,23 @@ void setup()
         String input = json.as<String>();
         int status = jsonManager.jsonBalancingCommandParser(input.c_str(), cellBalancingCommand);
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response);});
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::BALANCINGWRITE;
+                txMsg.id = cellBalancingCommand.bid;
+                TalisRS485Message::createCMSWriteBalancingRequest(txMsg, cellBalancingCommand.cball, 45);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
 
     AsyncCallbackJsonWebHandler *setAddressHandler = new AsyncCallbackJsonWebHandler("/set-addressing", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3055,6 +2018,7 @@ void setup()
         )";
         String input = json.as<String>();
         int status = jsonManager.jsonAddressingCommandParser(input.c_str());
+        isAddressing = status;
         addressingCommand.exec = status;
         commandStatus.addrCommand = status;
         isAddressingCompleted = 0;
@@ -3097,7 +2061,31 @@ void setup()
         String input = json.as<String>();
         int status = jsonManager.jsonLedParser(input.c_str(), ledCommand);
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::LED;
+                txMsg.id = ledCommand.bid;
+                LedColor ledColor[8];
+                for (size_t i = 0; i < ledCommand.num_of_led; i++)
+                {
+                    ledColor[i].red = ledCommand.red[i];
+                    ledColor[i].green = ledCommand.green[i];
+                    ledColor[i].blue = ledCommand.blue[i];
+                }
+                TalisRS485Message::createCMSWriteLedRequest(txMsg, ledColor, ledCommand.num_of_led);
+                userCommand.push_back(txMsg);
+            }
+            
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
 
     AsyncCallbackJsonWebHandler *setAlarmParamHandler = new AsyncCallbackJsonWebHandler("/set-alarm-parameter", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3111,18 +2099,24 @@ void setup()
 
         if (status > 0)
         {
-            Preferences preferences;
-            preferences.begin("dev_params");
             Serial.println("Set parameter");
             
-            preferences.putUShort("cdiff", alarmParam.vcell_diff);
-            preferences.putUShort("cdiff_r", alarmParam.vcell_diff_reconnect);
-            preferences.putUShort("coverv", alarmParam.vcell_max);
-            preferences.putUShort("cunderv", alarmParam.vcell_min);
-            preferences.putUShort("cunderv_r", alarmParam.vcell_reconnect);
-            preferences.putInt("covert", alarmParam.temp_max);
-            preferences.putInt("cundert", alarmParam.temp_min);
-            preferences.putChar("p_flag", 2); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
+            talisMemory.setCellDifference(alarmParam.vcell_diff);
+            talisMemory.setCellDifferenceReconnect(alarmParam.vcell_diff_reconnect);
+            talisMemory.setCellOvervoltage(alarmParam.vcell_overvoltage);
+            talisMemory.setCellUndervoltage(alarmParam.vcell_undervoltage);
+            talisMemory.setCellUndervoltageReconnect(alarmParam.vcell_reconnect);
+            talisMemory.setCellOvertemperature(alarmParam.temp_max);
+            talisMemory.setCellUndertemperature(alarmParam.temp_min);
+
+            // preferences.putUShort("cdiff", alarmParam.vcell_diff);
+            // preferences.putUShort("cdiff_r", alarmParam.vcell_diff_reconnect);
+            // preferences.putUShort("coverv", alarmParam.vcell_overvoltage);
+            // preferences.putUShort("cunderv", alarmParam.vcell_undervoltage);
+            // preferences.putUShort("cunderv_r", alarmParam.vcell_reconnect);
+            // preferences.putInt("covert", alarmParam.temp_max);
+            // preferences.putInt("cundert", alarmParam.temp_min);
+            // preferences.putChar("p_flag", 2); // parameter flag, 0 to initialize key, 1 to load from default, 2 to load from user
 
             response.replace(":status:", String(status));
             request->send(200, "application/json", response);    
@@ -3155,7 +2149,24 @@ void setup()
         int status = jsonManager.jsonCMSShutdownParser(input.c_str(), cmsShutDown);
         cmsShutDown.shutdown = status;
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::SHUTDOWN;
+                txMsg.id = cmsShutDown.bid;
+                TalisRS485Message::createShutDownRequest(txMsg);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        
+        });
 
     AsyncCallbackJsonWebHandler *setWakeupHandler = new AsyncCallbackJsonWebHandler("/set-wakeup", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3168,7 +2179,23 @@ void setup()
         int status = jsonManager.jsonCMSWakeupParser(input.c_str(), cmsWakeup);
         cmsWakeup.wakeup = status;
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::WAKEUP;
+                txMsg.id = cmsWakeup.bid;
+                TalisRS485Message::createWakeupRequest(txMsg);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
     
     AsyncCallbackJsonWebHandler *restartCMSHandler = new AsyncCallbackJsonWebHandler("/restart-cms", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3182,7 +2209,23 @@ void setup()
         cmsRestartCommand.restart = status;
         addressList.clear();
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.id = cmsRestartCommand.bid;
+                TalisRS485Message::createCMSResetRequest(txMsg);
+                txMsg.token = TalisRS485::RequestType::RESTART;
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
     
     AsyncCallbackJsonWebHandler *restartCMSViaPinHandler = new AsyncCallbackJsonWebHandler("/restart-cms-via-pin", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3224,11 +2267,16 @@ void setup()
         jsonManager.jsonRmsCodeParser(input.c_str(), rmsCodeWrite);
         if (rmsCodeWrite.write)
         {
-            status = writeToEeprom(EEPROM_RMS_CODE_ADDRESS, EEPROM_RMS_ADDRESS_CONFIGURED_FLAG, rmsCodeWrite.rmsCode, rmsCode);
-            if(status)
+            status = talisMemory.setRmsName(rmsCodeWrite.rmsCode.c_str());
+            if (status)
             {
-                rmsInfo.rmsCode = rmsCodeWrite.rmsCode;
+                rmsCode = talisMemory.getRmsName();
             }
+            // status = writeToEeprom(EEPROM_RMS_CODE_ADDRESS, EEPROM_RMS_ADDRESS_CONFIGURED_FLAG, rmsCodeWrite.rmsCode, rmsCode);
+            // if(status)
+            // {
+            //     rmsInfo.rmsCode = rmsCodeWrite.rmsCode;
+            // }
         }
         rmsCodeWrite.write = 0;
         response.replace(":status:", String(status));
@@ -3246,11 +2294,17 @@ void setup()
         jsonManager.jsonRmsRackSnParser(input.c_str(), rmsRackSnWrite);
         if (rmsRackSnWrite.write)
         {
-            status = writeToEeprom(EEPROM_RACK_SN_ADDRESS, EEPROM_RACK_SN_CONFIGURED_FLAG, rmsRackSnWrite.rackSn, rackSn);
-            if(status)
+            
+            status = talisMemory.setRackSn(rmsRackSnWrite.rackSn.c_str());
+            if (status)
             {
-                rmsInfo.rackSn = rmsRackSnWrite.rackSn;
+                rackSn = talisMemory.getRackSn();
             }
+            // status = writeToEeprom(EEPROM_RACK_SN_ADDRESS, EEPROM_RACK_SN_CONFIGURED_FLAG, rmsRackSnWrite.rackSn, rackSn);
+            // if(status)
+            // {
+            //     rmsInfo.rackSn = rmsRackSnWrite.rackSn;
+            // }
         }
         rmsRackSnWrite.write = 0;
         response.replace(":status:", String(status));
@@ -3266,7 +2320,23 @@ void setup()
         String input = json.as<String>();
         int status = jsonManager.jsonCMSFrameParser(input.c_str(), frameWrite);
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::CMSFRAMEWRITE;
+                txMsg.id = frameWrite.bid;
+                TalisRS485Message::createCMSFrameWriteIdRequest(txMsg, frameWrite.frameName);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
 
     AsyncCallbackJsonWebHandler *setCmsCodeHandler = new AsyncCallbackJsonWebHandler("/set-cms-code", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3277,6 +2347,11 @@ void setup()
         )";
         String input = json.as<String>();
         int status = jsonManager.jsonCMSCodeParser(input.c_str(), cmsCodeWrite);
+        TalisRS485TxMessage txMsg;
+        txMsg.token = TalisRS485::RequestType::CMSCODEWRITE;
+        txMsg.id = cmsCodeWrite.bid;
+        TalisRS485Message::createCMSCodeWriteRequest(txMsg, cmsCodeWrite.cmsCode);
+        userCommand.push_back(txMsg);
         response.replace(":status:", String(status));
         request->send(200, "application/json", response); });
 
@@ -3290,7 +2365,23 @@ void setup()
         String input = json.as<String>();
         int status = jsonManager.jsonCMSBaseCodeParser(input.c_str(), baseCodeWrite);
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::CMSBASECODEWRITE;
+                txMsg.id = baseCodeWrite.bid;
+                TalisRS485Message::createCMSBaseCodeWriteRequest(txMsg, baseCodeWrite.baseCode);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
 
     AsyncCallbackJsonWebHandler *setMcuCodeHandler = new AsyncCallbackJsonWebHandler("/set-mcu-code", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3302,7 +2393,23 @@ void setup()
         String input = json.as<String>();
         int status = jsonManager.jsonCMSMcuCodeParser(input.c_str(), mcuCodeWrite);
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::CMSMCUCODEWRITE;
+                txMsg.id = mcuCodeWrite.bid;
+                TalisRS485Message::createCMSMcuCodeWriteRequest(txMsg, mcuCodeWrite.mcuCode);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
 
     AsyncCallbackJsonWebHandler *setSiteLocationHandler = new AsyncCallbackJsonWebHandler("/set-site-location", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3314,7 +2421,23 @@ void setup()
         String input = json.as<String>();
         int status = jsonManager.jsonCMSSiteLocationParser(input.c_str(), siteLocationWrite);
         response.replace(":status:", String(status));
-        request->send(200, "application/json", response); });
+        if (status >= 0)
+        {
+            if (status > 0)
+            {
+                TalisRS485TxMessage txMsg;
+                txMsg.token = TalisRS485::RequestType::CMSSITELOCATIONWRITE;
+                txMsg.id = siteLocationWrite.bid;
+                TalisRS485Message::createCMSSiteLocationWriteRequest(txMsg, siteLocationWrite.siteLocation);
+                userCommand.push_back(txMsg);
+            }
+            request->send(200, "application/json", response);
+        }
+        else
+        {
+            request->send(400, "application/json", response);
+        }
+        });
 
     AsyncCallbackJsonWebHandler *setOtaUpdate = new AsyncCallbackJsonWebHandler("/ota-update", [](AsyncWebServerRequest *request, JsonVariant &json)
     {
@@ -3337,8 +2460,6 @@ void setup()
         )";
         
         NetworkSetting setting = jsonManager.parseNetworkSetting(json);
-        Preferences preferences;
-        preferences.begin("dev_params");
         if (setting.flag > 0)
         {
             Serial.println("Set network");
@@ -3361,17 +2482,26 @@ void setup()
                 subnetOctet[i] = subnet[i];
                 // Serial.println(subnetOctet[i]);
             }
-            gServerType = setting.server;
-            gMode = setting.mode;
+
+            gServerType = wifiSetting.getStationServer();
+            gMode = wifiSetting.getMode();
             
-            preferences.putString("ssid", setting.ssid);
-            preferences.putString("pass", setting.pass);
-            preferences.putString("ip", setting.ip);
-            preferences.putString("gateway", setting.gateway);
-            preferences.putString("subnet", setting.subnet);
-            preferences.putChar("server", setting.server);
-            preferences.putChar("mode", setting.mode);
-            preferences.putChar("n_flag", 2);
+            talisMemory.setSsid(setting.ssid.c_str());
+            talisMemory.setPass(setting.pass.c_str());
+            talisMemory.setIp(setting.ip.c_str());
+            talisMemory.setGateway(setting.gateway.c_str());
+            talisMemory.setSubnet(setting.subnet.c_str());
+            talisMemory.setServer(setting.server);
+            talisMemory.setMode(setting.mode);
+
+            // preferences.putString("ssid", setting.ssid);
+            // preferences.putString("pass", setting.pass);
+            // preferences.putString("ip", setting.ip);
+            // preferences.putString("gateway", setting.gateway);
+            // preferences.putString("subnet", setting.subnet);
+            // preferences.putChar("server", setting.server);
+            // preferences.putChar("mode", setting.mode);
+            // preferences.putChar("n_flag", 2);
             response.replace(":status:", String(setting.flag));
             request->send(200, "application/json", response);
         }
@@ -3379,7 +2509,6 @@ void setup()
         {
             request->send(400);
         }
-        preferences.end();
     });
 
     AsyncCallbackJsonWebHandler *setFactoryReset = new AsyncCallbackJsonWebHandler("/set-factory-reset", [](AsyncWebServerRequest *request, JsonVariant &json)
@@ -3396,9 +2525,7 @@ void setup()
         {
             if (status)
             {
-                Preferences preferences;
                 factoryReset = 1;
-                preferences.end();
             }
             response.replace(":status:", String(1));
             request->send(200, "application/json", response);
@@ -3448,27 +2575,21 @@ void setup()
     // restartCMSViaPin();
     // delay(100);
     dataCollectionCommand.exec = false;
-    cmsRestartCommand.bid = 255;
-    cmsRestartCommand.restart = 1;
+    // cmsRestartCommand.bid = 255;
+    // cmsRestartCommand.restart = 1;
     // for (size_t i = 0; i < 12; i++)
     // {
     //     Serial.println("Data normal list : " + String(isDataNormalList[i]));
     // }
-    delay(2000); //wait for CMS to boot
+    // delay(2000); //wait for CMS to boot
     MBserver.start(502, 10, 20000);
     systemStatus.bits.ready = 1;
     testDataCollection.exec = 1;
+    isAddressing = true;
 }
 
 void loop()
-{
-    int isRxBufferEmpty = false;    
-    int isResetSerialTimer = false;
-    int serialResponse = 0;
-    int qty;
-    startButton.tick();
-    ArduinoOTA.handle();
-
+{    
     // for (size_t i = 0; i < 8; i++)
     // {
     //     cellData[i].bid = i + 1;
@@ -3477,11 +2598,7 @@ void loop()
     //     Utilities::fillArrayRandom<int32_t>(cellData[i].pack, 3, 32000, 40000);
     // }
 
-    // LedData ledData = ledAnimation.update();
-    // Serial.println("Current Group : " + String(ledData.currentGroup));
-    // Serial.println("Current String : " + String(ledData.currentString));
-    // Serial.println("Address List Size : " + String(addressList.size()));
-    if (activeMode == Network::MODE::STATION)
+    if (wifiSetting.getMode() == mode_type::STATION || wifiSetting.getMode() == mode_type::AP_STATION)
     {
         if ((WiFi.status() != WL_CONNECTED) && (millis() - lastReconnectMillis >= reconnectInterval)) {
             digitalWrite(internalLed, LOW);
@@ -3494,7 +2611,6 @@ void loop()
 
     if (manualOverride)
     {
-        // Serial.println("Manual Override");
         digitalWrite(battRelay, forceRelay);
         if (!forceBuzzer)
         {
@@ -3516,12 +2632,7 @@ void loop()
 
     if (factoryReset)
     {
-        factoryReset = 0;
-        Preferences preferences;
-        preferences.begin("dev_params");
-        preferences.putChar("n_flag", 1);
-        preferences.putChar("p_flag", 1);
-        preferences.end();
+        talisMemory.reset();
         Serial.println("Factory Reset");
         delay(500);
         ESP.restart();
@@ -3529,112 +2640,27 @@ void loop()
 
     // digitalWrite(relay[0], !alarmCommand.powerRelay);
     // digitalWrite(relay[1], !alarmCommand.battRelay);
-    if(Serial.available())
-    {
-        char c = Serial.read();
-        if (c == '\n' || c == '\r')
-        {
-            while (Serial.available())
-            {
-                Serial.read();
-            }
-            
-            commandCompleted = true;
-        }
-        else
-        {
-            commandString += c;
-        }
-    }
 
-    if (Serial2.available())
-    {
-        char c = Serial2.read();
-        if (c == '\n')
-        {
-            responseCompleted = true;
-        }
-        else
-        {
-            responseString += c;
-        }
-        // lastTime = millis();
-        lastReceivedSerialData = millis();
-        isResetSerialTimer = true;
-    }
+    // for(int i = 0; i < addressList.size(); i++)
+    // {
+    //     int isUpdate = 0;
+    //     isUpdate = updater[addressList.at(i) - 1].isUpdate();
+    //     if(isUpdate)
+    //     {            
+    //         int isDataNormal = updater[addressList.at(i) - 1].isDataNormal();
+    //         isDataNormalList[addressList.at(i) - 1] = isDataNormal;
+    //         Serial.println("Bid : " + String(addressList.at(i) - 1));
+    //         Serial.println("Normal : "  + String(isDataNormal));
+    //         Serial.println("Data is Complete.. Pushing to Database");
+    //         cellData[i].msgCount++;
+    //         packedData.rackSn = rackSn;
+    //         // systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
+    //         updater[addressList.at(i) - 1].resetUpdater();    
+    //     }
+    // }
 
-    if (commandCompleted)
-    {
-        Serial.println(commandString);
-        #ifndef DEBUG
-            evalCommand(commandString);
-        #endif
-        checkResponse(commandString);
-        commandCompleted = false;
-        commandString = "";
-    }
-
-    if (responseCompleted)
-    {
-        Serial.println(responseString);
-        serialResponse = checkResponse(responseString);
-        // if (evalResponse(responseString))
-        // {
-        //     commandSequence++;
-        //     sendCommand = true;
-        //     lastTime = millis();
-        // }
-        responseCompleted = false;
-        responseString = "";
-    }
-
-    if (lastDeviceAddress != deviceAddress)
-    {
-        dataComplete = 0;
-        lastDeviceAddress = deviceAddress;
-    }
-    else
-    {
-        dataComplete += serialResponse;
-    }
-    
-    for(int i = 0; i < addressList.size(); i++)
-    {
-        int isUpdate = 0;
-        isUpdate = updater[addressList.at(i) - 1].isUpdate();
-        // Serial.println("Device Address : " + String(addressList.at(i)));
-        // Serial.println("is Update = " + String(isUpdate));
-        if(isUpdate)
-        {            
-            int isDataNormal = updater[addressList.at(i) - 1].isDataNormal();
-            isDataNormalList[addressList.at(i) - 1] = isDataNormal;
-            Serial.println("Bid : " + String(addressList.at(i) - 1));
-            Serial.println("Normal : "  + String(isDataNormal));
-            Serial.println("Data is Complete.. Pushing to Database");
-            cellData[i].msgCount++;
-            packedData.rackSn = rackSn;
-            // systemStatus.val = systemStatus.val | cellData[i].packStatus.val;
-            #ifdef AUTO_POST
-                String phpName = "update.php";
-                String link = serverName + phpName;
-                HTTPClient http;
-                http.begin(link);
-                http.addHeader("Content-Type", "application/json");
-                String httpPostData = jsonManager.buildSingleJsonData(cellData[addressList.at(i) - 1]);
-                Serial.println("Device Address : " + String(addressList.at(i)));
-                Serial.println(httpPostData);
-                int httpResponseCode = http.POST(httpPostData);
-                Serial.print("HTTP Response code: ");
-                Serial.println(httpResponseCode);
-                http.end();
-            #endif
-            updater[addressList.at(i) - 1].resetUpdater();    
-        }
-        
-    }
-
-    if(dataCollectionCommand.exec)
-    // if (testDataCollection.exec)
+    // if(dataCollectionCommand.exec)
+    if (testDataCollection.exec)
     {
         if(hardwareAlarm.enable)
         {
@@ -3654,12 +2680,7 @@ void loop()
                     break;
                 }
                 else
-                {
-                    // for (size_t i = 0; i < 12; i++)
-                    // {
-                    //     Serial.println("Data normal list : " + String(isDataNormalList[i]));
-                    // }
-                    
+                {                    
                     isDataNormalListUpdated = true;
                     if (tempData > 0) //data normal no alarm
                     {
@@ -3671,7 +2692,6 @@ void loop()
                         break;
                     }
                 }
-                // Serial.println("Data Normal : " + String(dataNormal));
             }
 
             bool cellDiffAlm = false;
@@ -3727,759 +2747,128 @@ void loop()
             systemStatus.bits.overtemperature = overtemperature;
             systemStatus.bits.undertemperature = undertemperature;
             alarmCommand.buzzer = buzzerState;
-
-            // if(isDataNormalListUpdated)
-            // {
-            //     Serial.println("Buzzer state : " + String(buzzerState));
-            // }
         }
     }
     
-
-    if (commandSequence > 4)
+    if (command > 5)
     {
-        commandSequence = 0;
-        deviceAddress++;
-    }
-    if (deviceAddress >= addressList.size())
-    {
-        deviceAddress = 0;
-        commandSequence = 0;
+        command = 0;
+        id++;
     }
 
-    if(isResetSerialTimer)
+    if (id >= addressList.size())
     {
-        lastReceivedSerialData = millis();
-        // Serial.println("updated last serial");
+        id = 0;
     }
+    
 
-    if (millis() - lastReceivedSerialData > 50)
+    if (isAddressing)
     {
-        // Serial.println("No Serial Data");
-        isRxBufferEmpty = true;
+        ESP_LOGI(TAG, "isAddressing");
+        if (talis.isTxQueueEmpty() && userCommand.empty())
+        {
+            TalisRS485TxMessage txMsg;
+            txMsg.id = 255;
+            txMsg.requestCode = TalisRS485::RequestType::RESTART;
+            txMsg.token = 10000;
+            TalisRS485Message::createCMSResetRequest(txMsg);
+            talis.send(txMsg);
+            delay(2000);
+            beginAddressing = true;
+            ESP_LOGI(TAG, "reset cms");
+        }
     }
-    else
+    // while(1);
+    if (!beginAddressing)
     {
-        lastTime = millis();
-    }
-
-    // Serial.println("Rx Buffer Empty : " + String(isRxBufferEmpty));
-
-    if (addressingByButton)
-    {
-        delay(100);
-        while (Serial2.available())
+        if (userCommand.size() > 0)
         {
-            Serial2.read();
-        }
-        
-        resetUpdater();
-        dataCollectionCommand.exec = 0;
-        Serial.println("Doing Addressing");
-        // performAddressing();
-        // performAddressingTest2();
-        addressing(true);
-        addressingCommand.exec = 0;
-        addressingByButton = 0;
-        sendCommand = true;
-        Serial.println("Addressing Finished");
-        isGotCMSInfo = false;
-        lastTime = millis();
-        digitalWrite(internalLed, HIGH);
-        dataCollectionCommand.exec = 1;
-        timerStart(myTimer);
-    }
-
-    if (addressingCommand.exec)
-    {
-        // perform addressing
-        // restartCMSViaPin();
-        // delay(1000);
-        delay(100);
-        while (Serial2.available())
-        {
-            Serial2.read();
-        }
-        
-        resetUpdater();
-        dataCollectionCommand.exec = 0;
-        addressingByButton = 0;
-        Serial.println("Doing Addressing");
-        // performAddressing();
-        // performAddressingTest2();
-        addressing(true);
-        addressingCommand.exec = 0;
-        sendCommand = true;
-        Serial.println("Addressing Finished");
-        isGotCMSInfo = false;
-        lastTime = millis();
-    }
-    else
-    {       
-        if (frameWrite.write)
-        {
-            Serial.println("Write Frame");
-            if (lastFrameWrite != frameWrite.write) //check if there is command to write frame
+            // ESP_LOGI(TAG, "User command size : %d\n", userCommand.size());
+            TalisRS485::Error error = talis.addRequest(userCommand.at(0));
+            if (error == TalisRS485::Error::SUCCESS)
             {
-                lastFrameWrite = frameWrite.write;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            // dataCollectionCommand.exec = false;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(frameWrite.bid, CMSFRAMEWRITE);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        frameWrite.bid = 0;
-                        frameWrite.write = false;
-                        lastFrameWrite = false;
-                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }         
-        }
-
-        if (cmsCodeWrite.write)
-        {
-            Serial.println("Write CMS Code");
-            if (lastCmsCodeWrite != cmsCodeWrite.write) //check if there is command to write frame
-            {
-                lastCmsCodeWrite = cmsCodeWrite.write;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            // dataCollectionCommand.exec = false;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(cmsCodeWrite.bid, CMSCODEWRITE);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        cmsCodeWrite.bid = 0;
-                        cmsCodeWrite.write = false;
-                        lastCmsCodeWrite = false;
-                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }         
-        }
-
-        if (baseCodeWrite.write)
-        {
-            Serial.println("Write Base Code");
-            if (lastBaseCodeWrite != baseCodeWrite.write) //check if there is command to write frame
-            {
-                lastBaseCodeWrite = baseCodeWrite.write;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            // dataCollectionCommand.exec = false;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(baseCodeWrite.bid, CMSBASECODEWRITE);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        baseCodeWrite.bid = 0;
-                        baseCodeWrite.write = false;
-                        lastBaseCodeWrite = false;
-                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }         
-        }
-
-        if (mcuCodeWrite.write)
-        {
-            Serial.println("Write Mcu Code");
-            if (lastMcuCodeWrite != mcuCodeWrite.write) //check if there is command to write frame
-            {
-                lastMcuCodeWrite = mcuCodeWrite.write;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            // dataCollectionCommand.exec = false;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(mcuCodeWrite.bid, CMSMCUCODEWRITE);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        mcuCodeWrite.bid = 0;
-                        mcuCodeWrite.write = false;
-                        lastMcuCodeWrite = false;
-                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }         
-        }
-
-        if (siteLocationWrite.write)
-        {
-            Serial.println("Write Mcu Code");
-            if (lastSiteLocationWrite != siteLocationWrite.write) //check if there is command to write frame
-            {
-                lastSiteLocationWrite = siteLocationWrite.write;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            // dataCollectionCommand.exec = false;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(siteLocationWrite.bid, CMSSITELOCATIONWRITE);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        siteLocationWrite.bid = 0;
-                        siteLocationWrite.write = false;
-                        lastSiteLocationWrite = false;
-                        dataCollectionCommand.exec = lastStateDataCollection; // retrieve the last state of data collection
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }         
-        }
-
-        if (cellBalancingCommand.sbal)
-        {
-            Serial.println("Do Balancing");
-            if (lastCellBalancingSball != cellBalancingCommand.sbal) //check if there is command to write balancing
-            {
-                lastCellBalancingSball = cellBalancingCommand.sbal;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(cellBalancingCommand.bid, BALANCINGWRITE);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        cellBalancingCommand.bid = 0;
-                        cellBalancingCommand.sbal = false;
-                        lastCellBalancingSball = false;
-                        dataCollectionCommand.exec = lastStateDataCollection;
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-                    
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-        }
-
-        if (ledCommand.ledset)
-        {
-            Serial.println("Set Led");
-            if (lastLedset != ledCommand.ledset) //check if there is command to write balancing
-            {
-                lastLedset = ledCommand.ledset;
-                lastStateDataCollection = dataCollectionCommand.exec; // save the last state of data collection
-            }
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(ledCommand.bid, LED);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        ledCommand.bid = 0;
-                        ledCommand.ledset = false;
-                        for (size_t i = 0; i < 8; i++)
-                        {
-                            ledCommand.red[i] = 0;
-                            ledCommand.green[i] = 0;
-                            ledCommand.blue[i] = 0;
-                        }
-                        lastLedset = false;
-                        dataCollectionCommand.exec = lastStateDataCollection;
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-                    
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-        }
-
-        if (cmsShutDown.shutdown)
-        {
-            Serial.println("Shutdown CMS");
-            if(lastCMSShutdown != cmsShutDown.shutdown)
-            {
-                lastCMSShutdown = cmsShutDown.shutdown;
-                lastStateDataCollection = dataCollectionCommand.exec;
-            }
-            // dataCollectionCommand.exec = false;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if(dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(cmsShutDown.bid, SHUTDOWN);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        cmsShutDown.bid = 0;
-                        cmsShutDown.shutdown = false;
-                        lastCMSShutdown = false;
-                        dataCollectionCommand.exec = lastStateDataCollection;
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-        }
-
-        if (cmsWakeup.wakeup)
-        {
-            Serial.println("Wakeup CMS");
-            
-            if(lastCMSWakeup != cmsWakeup.wakeup)
-            {
-                lastCMSWakeup = cmsWakeup.wakeup;
-                lastStateDataCollection = dataCollectionCommand.exec;
-            }
-
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if(dataCollectionCommand.exec == false)
-                    {
-                        sendRequest(cmsWakeup.bid, WAKEUP);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        cmsWakeup.bid = 0;
-                        cmsWakeup.wakeup = false;
-                        lastCMSWakeup = false;
-                        dataCollectionCommand.exec = lastStateDataCollection;
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }    
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-            
-        }
-
-        if (cmsRestartCommand.restart)
-        {
-            Serial.println("Restart CMS By Http Request");
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        // Serial.println("Restart CMS Block");
-                        resetUpdater();
-                        sendRequest(cmsRestartCommand.bid, RESTART);
-                        isRxBufferEmpty = false;
-                        sendCommand = false;
-                        cmsRestartCommand.bid = 0;
-                        cmsRestartCommand.restart = false;
-                        reInitCellData();                   
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        // Serial.println("Else Restart CMS Block");
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-                    
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-        }
-
-        if (isCmsRestartPin)
-        {
-            Serial.println("Restart CMS");
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        resetUpdater();
-                        cmsRestartCommand.bid = 255;
-                        cmsRestartCommand.restart = 1;
-                        sendRequest(cmsRestartCommand.bid, RESTART);
-                        cmsRestartCommand.bid = 0;
-                        cmsRestartCommand.restart = 0;
-                        isRxBufferEmpty = false;
-                        // restartCMSViaPin();
-                        sendCommand = false;
-                        isCmsRestartPin = false;   
-                        reInitCellData();              
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-                    
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-        }
-
-        if (rmsRestartCommand.restart)
-        {
-            Serial.println("Restart RMS");
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            if (isRxBufferEmpty && !Serial2.available())
-            {
-                if(sendCommand)
-                {
-                    if (dataCollectionCommand.exec == false)
-                    {
-                        resetUpdater();
-                        for (size_t i = 0; i < NUM_LEDS; i++)
-                        {
-                            leds[i] = CRGB::Black;
-                        }
-                        FastLED.show();
-                        delay(2000);
-                        rmsRestartCommand.restart = 0;
-                        ESP.restart();
-                    }
-                    else
-                    {
-                        dataCollectionCommand.exec = false;
-                    }
-                }
-                else
-                {
-                    dataCollectionCommand.exec = false;
-                }
-                    
-            }
-            else
-            {
-                dataCollectionCommand.exec = false;
-            }
-        }
-        
-        if(dataCollectionCommand.exec)
-        {
-            
-            if (addressList.size() > 0) //check if addressing success
-            {
-                // Serial.println("addressList > 0");
-                systemStatus.bits.condition = 1;
-                if (sendCommand)
-                {
-                    // Serial.println("send command");
-                    if (isGotCMSInfo)
-                    {
-                        // Serial.println("got cms info");
-                        if (isRxBufferEmpty && !Serial2.available())
-                        {
-                            // Serial.println("send request data");
-                            // Serial.println("Cycle : " + String(cycle));
-                            if(!cycle)
-                            {
-                                // Serial.println("command sequence");
-                                sendRequest(addressList.at(deviceAddress), commandSequence);
-                                isFromSequence = true;
-                            }
-                            else
-                            {
-                                sendRequest(addressList.at(deviceAddress), LED);
-                                isFromSequence = false;
-                            }
-                            if(isGotCMSInfo)
-                            {
-                                if(ledAnimation.isRunning())
-                                {
-                                    cycle = !cycle;
-                                }
-                                else
-                                {
-                                    cycle = false;
-                                }
-                            
-                            }                            
-                            isRxBufferEmpty = false;
-                            lastTime = millis();
-                            lastReceivedSerialData = millis();
-                            sendCommand = false;
-                        }                
-                    }
-                    else
-                    {
-                        // Serial.println("dont have cms info");
-                        if(isRxBufferEmpty && !Serial2.available())
-                        {
-                            // Serial.println("send cms info request");
-                            sendRequest(addressList.at(deviceAddress), CMSINFO);
-                            isRxBufferEmpty = false;
-                            sendCommand = false;
-                            if (deviceAddress >= (addressList.size() - 1)) //check if deviceAddress is in the last index
-                            {
-                                if (cmsInfoRetry >= 2)
-                                {
-                                    isGotCMSInfo = true;
-                                    cmsInfoRetry = 0;
-                                    deviceAddress = 0;
-                                    // commandSequence = 0;
-                                    lastTime = millis();
-                                    lastReceivedSerialData = millis();
-                                    // sendCommand = true;
-                                }
-                                else
-                                {
-                                    cmsInfoRetry++;
-                                }
-                            }
-                            lastTime = millis();
-                            lastReceivedSerialData = millis();
-                        }
-                        else
-                        {
-                            lastTime = millis();
-                        }
-                    }
-                    
-                }
-
-                // change command every 100 ms
-                if(!sendCommand)
-                {
-                    if ((millis() - lastTime > 100) && isRxBufferEmpty == true)
-                    {
-                        if (lastIsGotCmsInfo != isGotCMSInfo) // check if the flow is after request info, to prevent increment the commandSequence
-                        {
-                            lastIsGotCmsInfo = isGotCMSInfo;
-                        }
-                        else 
-                        {
-                            if (isGotCMSInfo) //if got cms info, sequencing command
-                            {
-                                // Serial.println("Send Command timeout!");
-                                if(isFromSequence)
-                                {
-                                    commandSequence++;
-                                }                           
-                            } 
-                            else
-                            {
-                                commandSequence = 0;
-                                deviceAddress++; //used to retrieve cms info
-                            }
-                        }               
-                        sendCommand = true;
-                        lastTime = millis();
-                        lastReceivedSerialData = millis();
-                    }
-                }
-            }
-            
+                userCommand.erase(userCommand.begin());
+            }  
         }
         else
         {
-            systemStatus.bits.condition = 0;
-            resetUpdater();
-            // if (!testDataCollection.exec)
-            // {
-            //     resetUpdater();
-            // }
-            sendCommand = true;
-            isGotCMSInfo = false;
-            deviceAddress = 0;
-            commandSequence = 0;
-            lastIsGotCmsInfo = false;
-            lastTime = millis();
-            cycle = false;
-            isFromSequence = false;
-        }
-        
-    }
+            if (!addressList.empty())
+            {
+                // ESP_LOGI(TAG, "address list size : %d\n", addressList.size());
+                TalisRS485TxMessage txMsg;
+                txMsg.id = addressList.at(id);
+                txMsg.token = commandOrder[command];
+                switch (commandOrder[command])
+                {
+                    case TalisRS485::RequestType::VCELL :
+                        TalisRS485Message::createVcellRequest(txMsg);
+                    break;
+                    case TalisRS485::RequestType::TEMP :
+                        TalisRS485Message::createTemperatureRequest(txMsg);
+                    break;
+                    case TalisRS485::RequestType::VPACK :
+                        TalisRS485Message::createVpackRequest(txMsg);
+                    break;
+                    case TalisRS485::RequestType::CMSSTATUS :
+                        TalisRS485Message::createCMSStatusRequest(txMsg);
+                    break;
+                    case TalisRS485::RequestType::CMSREADBALANCINGSTATUS :
+                        TalisRS485Message::createReadBalancingStatus(txMsg);
+                    break;
+                    case TalisRS485::RequestType::CMSINFO :
+                        TalisRS485Message::createCMSInfoRequest(txMsg);
+                    break;
+                    case TalisRS485::RequestType::LED :
+                        if (ledAnimation.isRunning())
+                        {
+                            LedData ledData = ledAnimation.update();
+                            LedColor ledColor[8];
 
-    // delay(100);
+                            for (size_t i = 0; i < 8; i++)
+                            {
+                                ledColor[i].red = ledData.red[i];
+                                ledColor[i].green = ledData.green[i];
+                                ledColor[i].blue = ledData.blue[i];
+                            }
+
+                            if(ledData.currentGroup >= 0)
+                            {
+                                txMsg.id = ledData.currentGroup;
+                            }
+                            TalisRS485Message::createCMSWriteLedRequest(txMsg, ledColor, 8);
+                        }
+                    break;
+                    default:
+                    break;
+                }
+                
+                if (!isAddressing)
+                {
+                    // ESP_LOGV(TAG, "ID : %d\nCommand : %d\n", id, command);
+                    TalisRS485::Error error = talis.addRequest(txMsg);
+                    if (error == TalisRS485::Error::SUCCESS)
+                    {
+                        command++;
+                    }
+                }
+            }
+        }
+    }  
+    else
+    {
+        ESP_LOGI(TAG, "Addressing in waiting state..");
+        ESP_LOGI(TAG, "Addressing in progress..");
+        bool isFromBottom = true;
+        talis.pause();
+        talis.setTimeout(100);
+        currentAddrBid = 1;
+        addressing(true);
+        talis.setTimeout(500);
+        talis.resume();
+        isAddressing = false;
+        beginAddressing = false;
+        ESP_LOGI(TAG, "Addressing is finished");
+        // talis.resume();
+    }
+    delay(1);
 } // void loop end

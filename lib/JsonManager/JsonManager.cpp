@@ -127,7 +127,7 @@ String JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedDa
 {
     String result;
     int bid = 0;
-    DynamicJsonDocument doc(12288); //for 8 object
+    DynamicJsonDocument doc(12300); //for 8 object
     CellData *pointer;
     doc["rack_sn"] = packedData.rackSn;
     JsonArray cms = doc.createNestedArray("cms_data");
@@ -263,9 +263,9 @@ String JsonManager::buildJsonAlarmParameter(const AlarmParam& alarmParam)
     StaticJsonDocument<256> doc;
     doc["vcell_diff"] = alarmParam.vcell_diff;
     doc["vcell_diff_reconnect"] = alarmParam.vcell_diff_reconnect;
-    doc["vcell_max"] = alarmParam.vcell_max;
-    doc["vcell_min"] = alarmParam.vcell_min;
-    doc["vcell_min_reconnect"] = alarmParam.vcell_reconnect;
+    doc["vcell_overvoltage"] = alarmParam.vcell_overvoltage;
+    doc["vcell_undervoltage"] = alarmParam.vcell_undervoltage;
+    doc["vcell_undervoltage_reconnect"] = alarmParam.vcell_reconnect;
     doc["temp_max"] = alarmParam.temp_max;
     doc["temp_min"] = alarmParam.temp_min;
     serializeJson(doc, result);
@@ -350,9 +350,9 @@ String JsonManager::getUserAlarmSetting(const AlarmParam &alarmParam)
     String output;
     doc["vcell_diff"] = alarmParam.vcell_diff;
     doc["vcell_diff_reconnect"] = alarmParam.vcell_diff_reconnect;
-    doc["vcell_max"] = alarmParam.vcell_max;
-    doc["vcell_min"] = alarmParam.vcell_min;
-    doc["vcell_min_reconnect"] = alarmParam.vcell_reconnect;
+    doc["vcell_overvoltage"] = alarmParam.vcell_overvoltage;
+    doc["vcell_undervoltage"] = alarmParam.vcell_undervoltage;
+    doc["vcell_undervoltage_reconnect"] = alarmParam.vcell_reconnect;
     doc["temp_max"] = alarmParam.temp_max;
     doc["temp_min"] = alarmParam.temp_min;
     serializeJson(doc, output);
@@ -554,8 +554,8 @@ int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& ala
     
     alarmParam.vcell_diff = doc["vcell_diff"];
     alarmParam.vcell_diff_reconnect = doc["vcell_diff_reconnect"];
-    alarmParam.vcell_max = doc["vcell_max"];
-    alarmParam.vcell_min = doc["vcell_min"];
+    alarmParam.vcell_overvoltage = doc["vcell_overvoltage"];
+    alarmParam.vcell_undervoltage = doc["vcell_undervoltage"];
     alarmParam.vcell_reconnect = doc["vcell_min_reconnect"];
     alarmParam.temp_max = doc["temp_max"].as<signed int>();
     alarmParam.temp_min = doc["temp_min"].as<signed int>();

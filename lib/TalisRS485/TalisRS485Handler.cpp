@@ -4,6 +4,7 @@ TalisRS485Handler::TalisRS485Handler()
 {
   _txMsgQueue.reserve(10);
   _rxMsgQueue.reserve(10);
+  esp_log_level_set(_TAG, ESP_LOG_INFO);
 }
 
 void TalisRS485Handler::begin(HardwareSerial *hwSerial, bool isAscii, char terminateCharacter)
@@ -12,7 +13,7 @@ void TalisRS485Handler::begin(HardwareSerial *hwSerial, bool isAscii, char termi
   _messagePacketInterval = TalisRS485Utils::calculateInterval(_hwSerial->baudRate());
   _isAscii = isAscii;
   _terminateCharacter = terminateCharacter;
-  ESP_LOGV(_TAG, "silent interval : %d\n", _messagePacketInterval);
+  ESP_LOGI(_TAG, "silent interval : %d\n", _messagePacketInterval);
   // _messagePacketInterval = 20000;
 }
 
@@ -98,6 +99,17 @@ void TalisRS485Handler::handle()
     if (!_txMsgQueue.empty())
     {
       TalisRS485TxMessage txMsg = _txMsgQueue.front();
+
+      /**
+       * This is broadcast message, do not expect any response, just skip and move on
+      */
+      if (txMsg.id == 255)
+      {
+        send(txMsg);
+        _txMsgQueue.erase(_txMsgQueue.begin());
+        return;
+      }
+
       send(txMsg);
       TalisRS485RxMessage readMsg = receive(_timeout);
       if (readMsg.error == TalisRS485::Error::SUCCESS)
@@ -191,7 +203,7 @@ TalisRS485RxMessage TalisRS485Handler::receive(int timeout)
           // No, we had no byte. Just check the timeout period
           if (millis() - TimeOut >= timeout) {
             // ESP_LOGV(_TAG,"time difference : %d\n", (millis() - TimeOut));
-            // ESP_LOGV(_TAG, "Timeout!");
+            ESP_LOGI(_TAG, "Timeout, no packet data received!");
             msg.error = TalisRS485::Error::TIMEOUT;
             state = FINISHED;
             
@@ -216,6 +228,7 @@ TalisRS485RxMessage TalisRS485Handler::receive(int timeout)
               // Yes. Something fishy here - bail out!
               msg.error = TalisRS485::Error::BUFFER_OVF;
               state = FINISHED;
+              ESP_LOGI(_TAG, "Buffer OVF");
               // Serial.println("buffer ovf");
               break;
             }
@@ -228,13 +241,13 @@ TalisRS485RxMessage TalisRS485Handler::receive(int timeout)
             {
               if (buffer[bufferPtr-1] == _terminateCharacter)
               {
-                // ESP_LOGV(_TAG, "Terminate character found");
+                ESP_LOGI(_TAG, "Terminate character found");
                 state = DATA_READ;
                 break;
               }
               if (millis() - lastMillis >= timeout) {
                 // Yes, terminate reading
-                // ESP_LOGV(_TAG, "No Terminate character found, timeout!");
+                ESP_LOGI(_TAG, "No Terminate character found, timeout!");
                 state = FINISHED;
                 msg.error = TalisRS485::Error::NO_TERMINATE_CHARACTER;
                 break;
@@ -244,7 +257,7 @@ TalisRS485RxMessage TalisRS485Handler::receive(int timeout)
             {
               if (micros() - lastMicros >= _messagePacketInterval) {
                 // Yes, terminate reading
-                // ESP_LOGV(_TAG, "Silent interval");
+                ESP_LOGI(_TAG, "Silent interval");
                 state = DATA_READ;
                 break;
               }
@@ -257,7 +270,7 @@ TalisRS485RxMessage TalisRS485Handler::receive(int timeout)
         // Did we get a sensible buffer length?
         // LOG_V("%c/", (const char)caller);
         // HEXDUMP_V("Raw buffer received", buffer, bufferPtr);
-        // ESP_LOGV(_TAG, "Copy data to buffer");
+        ESP_LOGI(_TAG, "Copy data to buffer");
         msg.writeBuffer(buffer, bufferPtr);
         msg.error = TalisRS485::Error::SUCCESS;
         state = FINISHED;
@@ -266,7 +279,7 @@ TalisRS485RxMessage TalisRS485Handler::receive(int timeout)
       case FINISHED:
         // CLear serial buffer in case something is left trailing
         // May happen with servers too slow!
-        ESP_LOGV(_TAG, "Finish");
+        ESP_LOGI(_TAG, "Finish");
         while (_hwSerial->available()) _hwSerial->read();
         // Serial.println("finish");
         break;
@@ -280,12 +293,15 @@ void TalisRS485Handler::send(const TalisRS485TxMessage &msg) {
     // Clear serial buffers
     while (_hwSerial->available()) _hwSerial->read();
     
+    String output;
     for (size_t i = 0; i < msg.dataLength; i++)
     {
       _hwSerial->write(msg.txData[i]);
+      output += (char)msg.txData[i];
     }
-
-    ESP_LOG_BUFFER_CHAR(_TAG, msg.txData, msg.dataLength);
+    ESP_LOGI(_TAG, "SEND COMMAND");
+    ESP_LOGI(_TAG, "Data length : %d\n", msg.dataLength);
+    ESP_LOGI(_TAG, "%s\n", output.c_str());
 }
 
 TalisRS485Handler::~TalisRS485Handler()

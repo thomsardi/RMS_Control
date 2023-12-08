@@ -74,8 +74,8 @@ struct AlarmParam
 {
     uint16_t vcell_diff = 0;
     uint16_t vcell_diff_reconnect = 0;
-    uint16_t vcell_max = 0;
-    uint16_t vcell_min = 0;
+    uint16_t vcell_overvoltage = 0;
+    uint16_t vcell_undervoltage = 0;
     uint16_t vcell_reconnect = 0;
     int32_t temp_max = 0;
     int32_t temp_min = 0;

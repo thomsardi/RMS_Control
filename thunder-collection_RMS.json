@@ -1,0 +1,327 @@
+{
+    "client": "Thunder Client",
+    "collectionName": "RMS",
+    "dateExported": "2023-12-08T02:48:52.996Z",
+    "version": "1.1",
+    "folders": [],
+    "requests": [
+        {
+            "_id": "ded4ecb5-4f22-4a75-8dce-fa2bfdf237a1",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "get-device-general-info",
+            "url": "get-device-general-info",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2023-03-28T08:13:04.373Z",
+            "modified": "2023-03-28T08:13:24.174Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "7e69d99f-0cd2-455e-84ca-94cfcb9c5576",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Get Device CMS Info",
+            "url": "get-device-cms-info",
+            "method": "GET",
+            "sortNum": 15000,
+            "created": "2023-10-06T06:45:17.457Z",
+            "modified": "2023-10-06T06:45:35.320Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "966f6a0b-6b13-4970-b7f9-7c5f3aaf1d1f",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Rack Sn",
+            "url": "set-rack-sn",
+            "method": "POST",
+            "sortNum": 20000,
+            "created": "2023-03-28T08:15:19.437Z",
+            "modified": "2023-12-08T02:00:04.558Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"rack_sn_write\" : 1,\n  \"rack_sn\" : \"RACK-32-RND\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "2e898a8a-f814-4fa8-a082-3e6085f71cd6",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Addressing",
+            "url": "set-addressing",
+            "method": "POST",
+            "sortNum": 20312.5,
+            "created": "2023-10-17T01:34:18.370Z",
+            "modified": "2023-10-17T03:39:18.385Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"addr\" : 1\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "be612c90-438a-464b-9148-b233b4cc645d",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Factory Reset",
+            "url": "set-factory-reset",
+            "method": "POST",
+            "sortNum": 20625,
+            "created": "2023-10-06T01:51:53.694Z",
+            "modified": "2023-10-06T01:54:30.433Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"factory_reset\" : 1\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "0529515b-d3e9-4250-83e7-fd6a2fa5e8a2",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Network",
+            "url": "set-network",
+            "method": "POST",
+            "sortNum": 21250,
+            "created": "2023-10-05T04:09:59.601Z",
+            "modified": "2023-12-08T01:59:13.004Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n    \"ssid\" : \"RnD_Sundaya\",\n    \"pass\" : \"sundaya22\",\n    \"ip\" : \"192.168.2.100\",\n    \"gateway\" : \"192.168.2.100\",\n    \"subnet\" : \"255.255.255.0\",\n    \"server\" : 2,\n    \"mode\" : 3\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "987f00e2-e8f2-4595-a51a-234c4f80d6b5",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "OTA Update",
+            "url": "ota-update",
+            "method": "POST",
+            "sortNum": 22500,
+            "created": "2023-08-04T04:01:52.436Z",
+            "modified": "2023-08-04T04:04:48.654Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"ota_update\" : 1,\n  \"server\" : \"192.168.2.132\",\n  \"port\" : 80,\n  \"path\" : \"ota/firmware.bin\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "4d66717a-5e84-434c-a481-d048b95a965f",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Alarm Parameter",
+            "url": "set-alarm-parameter",
+            "method": "POST",
+            "sortNum": 25000,
+            "created": "2023-03-31T04:09:16.051Z",
+            "modified": "2023-10-06T01:51:34.716Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"vcell_diff\" : 302,\n  \"vcell_diff_reconnect\" : 253,\n  \"vcell_max\" : 3704,\n  \"vcell_min\" : 3005,\n  \"vcell_min_reconnect\" : 3206,\n  \"temp_max\" : 80007,\n  \"temp_min\" : 30008\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "9d9cbfcd-5ae9-4fb9-88d7-a4cb49fe5075",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Frame",
+            "url": "set-frame",
+            "method": "POST",
+            "sortNum": 26250,
+            "created": "2023-12-08T02:07:50.788Z",
+            "modified": "2023-12-08T02:09:58.878Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"bid\" : 2,\n  \"frame_write\" : 1,\n  \"frame_name\" : \"61100010\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "9f8e4484-2212-4c4b-b89c-22e0db334099",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set CMS Code",
+            "url": "set-cms-code",
+            "method": "POST",
+            "sortNum": 26875,
+            "created": "2023-12-08T02:10:47.587Z",
+            "modified": "2023-12-08T02:13:19.207Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"bid\" : 1,\n  \"cms_write\" : 1,\n  \"cms_code\" : \"cms-code-32\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "02ca9c2b-8359-4e38-8f6c-7c26cb148c50",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Base Code",
+            "url": "set-base-code",
+            "method": "POST",
+            "sortNum": 27187.5,
+            "created": "2023-12-08T02:13:28.620Z",
+            "modified": "2023-12-08T02:14:21.325Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"bid\" : 1,\n  \"base_write\" : 1,\n  \"base_code\" : \"base-code-32\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "edad276d-f967-40b0-aa9e-62fd44f0708e",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set MCU Code",
+            "url": "set-mcu-code",
+            "method": "POST",
+            "sortNum": 27343.8,
+            "created": "2023-12-08T02:15:12.483Z",
+            "modified": "2023-12-08T02:16:08.853Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"bid\" : 1,\n  \"mcu_write\" : 1,\n  \"mcu_code\" : \"mcu-code-32\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "9e6cdffb-b99a-491d-843d-06afb51d53ff",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Set Site Location",
+            "url": "set-site-location",
+            "method": "POST",
+            "sortNum": 27421.9,
+            "created": "2023-12-08T02:16:18.427Z",
+            "modified": "2023-12-08T02:16:52.433Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"bid\" : 1,\n  \"site_write\" : 1,\n  \"site_location\" : \"papua\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "75719ada-4ce2-438f-878b-510ffbc56771",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Get Alarm Parameter",
+            "url": "get-alarm-parameter",
+            "method": "GET",
+            "sortNum": 27500,
+            "created": "2023-10-05T08:06:13.583Z",
+            "modified": "2023-10-05T08:06:24.017Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "ac81f3f7-2741-4a49-bc8f-4e18de946cb2",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Get data with bid",
+            "url": "get-data?bid=1,2",
+            "method": "GET",
+            "sortNum": 30000,
+            "created": "2023-03-31T01:19:36.400Z",
+            "modified": "2023-04-12T04:14:28.931Z",
+            "headers": [],
+            "params": [
+                {
+                    "name": "bid",
+                    "value": "1,2",
+                    "isPath": false
+                }
+            ],
+            "tests": []
+        },
+        {
+            "_id": "aa3b58ab-b848-445e-a3d5-a556b9caabc2",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Get all data",
+            "url": "get-cms-data",
+            "method": "GET",
+            "sortNum": 45000,
+            "created": "2023-12-08T02:47:32.572Z",
+            "modified": "2023-12-08T02:47:32.572Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "5f2946ce-1d64-44a1-82bc-0765ab8e5cca",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Get user network setting",
+            "url": "get-user-network-setting",
+            "method": "GET",
+            "sortNum": 50000,
+            "created": "2023-10-04T08:47:33.932Z",
+            "modified": "2023-10-04T08:48:17.563Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "9a120aff-6f0d-4049-b883-31b97ea6a49f",
+            "colId": "840a3bbf-63f0-4335-984e-71056641c34a",
+            "containerId": "",
+            "name": "Get Network Info",
+            "url": "get-network-info",
+            "method": "GET",
+            "sortNum": 60000,
+            "created": "2023-10-05T08:19:21.342Z",
+            "modified": "2023-10-05T08:19:38.406Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        }
+    ],
+    "settings": {
+        "options": {
+            "baseUrl": "http://192.168.2.157/"
+        }
+    }
+}

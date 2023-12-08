@@ -42,13 +42,13 @@ void Updater::updateVcell(bool isVcellNormal)
 void Updater::updateTemp(bool isTempNormal)
 {
     _isTempNormal = isTempNormal;
-    if (_isTempUpdated)
-    {
-        _isVcellUpdated = false;
-        _isVpackUpdated = false;
-        _isStatusUpdated = false;
+    // if (_isTempUpdated)
+    // {
+    //     _isVcellUpdated = false;
+    //     _isVpackUpdated = false;
+    //     _isStatusUpdated = false;
 
-    }
+    // }
     _isTempUpdated = true;
     Serial.println("Temp Updated");
 }
@@ -56,24 +56,24 @@ void Updater::updateTemp(bool isTempNormal)
 void Updater::updateVpack(bool isVpackNormal)
 {
     _isVpackNormal = isVpackNormal;
-    if (_isVpackUpdated)
-    {
-        _isVcellUpdated = false;
-        _isTempUpdated = false;
-        _isStatusUpdated = false;
-    }
+    // if (_isVpackUpdated)
+    // {
+    //     _isVcellUpdated = false;
+    //     _isTempUpdated = false;
+    //     _isStatusUpdated = false;
+    // }
     _isVpackUpdated = true;
     Serial.println("Vpack Updated");
 }
 
 void Updater::updateStatus()
 {
-    if (_isStatusUpdated)
-    {
-        _isVcellUpdated = false;
-        _isTempUpdated = false;
-        _isVpackUpdated = false;
-    }
+    // if (_isStatusUpdated)
+    // {
+    //     _isVcellUpdated = false;
+    //     _isTempUpdated = false;
+    //     _isVpackUpdated = false;
+    // }
     _isStatusUpdated = true;
     Serial.println("Status Updated");
 }

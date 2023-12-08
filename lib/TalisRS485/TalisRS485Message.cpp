@@ -124,7 +124,7 @@ bool TalisRS485Message::createCMSFrameWriteIdRequest(TalisRS485TxMessage &txMsg,
     return txMsg.writeBuffer((uint8_t*)output.c_str(), output.length());
 }
 
-bool createCMSCodeWriteRequest(TalisRS485TxMessage &txMsg, String cmsCode)
+bool TalisRS485Message::createCMSCodeWriteRequest(TalisRS485TxMessage &txMsg, String cmsCode)
 {
     String output;
     StaticJsonDocument<96> doc;
