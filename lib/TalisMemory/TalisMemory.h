@@ -26,6 +26,7 @@ namespace TalisDefinition {
         int cellUndertemperature = 10000;
         String rmsName = "RMS-32-NA";
         String rackSn = "RACK-32-NA";
+        bool hardwareAlarm = false;
 
         Params()
         {
@@ -100,6 +101,7 @@ namespace TalisDefinition {
                 {"cell_undertemperature", "d_cundert"},
                 {"rms_name", "d_rms_n"},
                 {"rack_sn", "d_rack_sn"},
+                {"hardware_alarm", "d_hardware"}
             };
 
             std::map<std::string, std::string> flag = {
@@ -157,6 +159,7 @@ namespace TalisDefinition {
                 {"cell_undertemperature", "u_cundert"},
                 {"rms_name", "u_rms_n"},
                 {"rack_sn", "u_rack_sn"},
+                {"hardware_alarm", "d_hardware"}
             };
 
             void print() 
@@ -211,6 +214,7 @@ public:
     int getCellUndertemperature(int valueOnError = 0);
     String getRmsName();
     String getRackSn();
+    bool getHardwareAlarm();
     
     bool setSsid(const char* value);
     bool setPass(const char* value);
@@ -228,6 +232,7 @@ public:
     bool setCellUndertemperature(int value);
     bool setRmsName(const char* value);
     bool setRackSn(const char* value);
+    bool setHardwareAlarm(bool value);
 
     bool reset();
     ~TalisMemory();

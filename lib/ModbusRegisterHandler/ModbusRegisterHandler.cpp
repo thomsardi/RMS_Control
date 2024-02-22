@@ -2,12 +2,14 @@
 
 ModbusRegisterHandler::ModbusRegisterHandler(ModbusRegisterData &modbusRegisterData)
 {
-    _cellDataptr = modbusRegisterData.inputRegister.packedData->p;
-    _cellDataSize = modbusRegisterData.inputRegister.packedData->size;
+    _cellDataptr = modbusRegisterData.inputRegister.packedData->cms;
+    // _cellDataSize = modbusRegisterData.inputRegister.packedData->cms->max_size();
+    _cellDataSize = 8;
     _otherInfo = modbusRegisterData.inputRegister.otherInfo;
     _settingRegisters = modbusRegisterData.holdingRegisters.settingRegisters;
     _mbusCoilData = modbusRegisterData.mbusCoil.mbusCoilData;
     _modbusRegisterData = &modbusRegisterData;
+    esp_log_level_set(_TAG, ESP_LOG_INFO);
 }
 
 ModbusMessage ModbusRegisterHandler::handleReadCoils(const ModbusMessage &request)
@@ -51,7 +53,6 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
     request.get(2, addr);        // read address from request
     request.get(4, words);       // read # of words from request
 
-
     int offset = 9000;
 
     if (addr < 9000) 
@@ -75,66 +76,73 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
         }
         else
         {
-            
+            int key = group + 1;
             uint16_t memory[_elementSize];
-
             Utilities::fillArray<uint16_t>(memory, _elementSize, 0);
-            
-            for (size_t i = 0; i < 45; i++) //45 cell data
+            ESP_LOGI(_TAG, "index : %d\n", index);
+            if ((*_cellDataptr).find(key) != (*_cellDataptr).end())
             {
-                int idx = 0 + i;
-                memory[idx] = _cellDataptr[group].vcell[i];
-            }
-            for (size_t i = 0; i < 9; i++) //9 temp data
-            {
-                int idx = 45 + (i*2);
-                memory[idx] = _cellDataptr[group].temp[i] >> 16;
-                memory[idx+1] = _cellDataptr[group].temp[i] & 0xffff;
-            }
-            for (size_t i = 0; i < 3; i++) //3 vpack data
-            {
-                int idx = 45 + 18 + (i*2);
-                memory[idx] = _cellDataptr[group].pack[i] >> 16;
-                memory[idx+1] = _cellDataptr[group].pack[i] & 0xffff;
-            }
-            memory[69] = _cellDataptr[group].packStatus.val;
-            memory[70] = _cellDataptr[group].bid;
-            memory[71] = _cellDataptr[group].msgCount;
-            uint16_t temp[8];
-            if (Utilities::toDoubleChar(_cellDataptr[group].frameName, temp, 8, true) > 0)
-            {
-                for (size_t i = 0; i < 8; i++)
+                ESP_LOGI(_TAG, "key found");
+                for (size_t i = 0; i < 45; i++) //45 cell data
                 {
-                    memory[72+i] = temp[i];
+                    int idx = 0 + i;
+                    memory[idx] = (*_cellDataptr)[key].vcell[i];
+                }
+                for (size_t i = 0; i < 9; i++) //9 temp data
+                {
+                    int idx = 45 + (i*2);
+                    memory[idx] = (*_cellDataptr)[key].temp[i] >> 16;
+                    memory[idx+1] = (*_cellDataptr)[key].temp[i] & 0xffff;
+                }
+                for (size_t i = 0; i < 3; i++) //3 vpack data
+                {
+                    int idx = 45 + 18 + (i*2);
+                    memory[idx] = (*_cellDataptr)[key].pack[i] >> 16;
+                    memory[idx+1] = (*_cellDataptr)[key].pack[i] & 0xffff;
+                }
+                memory[69] = (*_cellDataptr)[key].packStatus.val;
+                memory[70] = (*_cellDataptr)[key].bid;
+                memory[71] = (*_cellDataptr)[key].msgCount;
+                uint16_t temp[8];
+                if (Utilities::toDoubleChar((*_cellDataptr)[key].frameName, temp, 8, true) > 0)
+                {
+                    for (size_t i = 0; i < 8; i++)
+                    {
+                        memory[72+i] = temp[i];
+                    }
+                }
+                if (Utilities::toDoubleChar((*_cellDataptr)[key].cmsCodeName, temp, 8, true) > 0)
+                {
+                    for (size_t i = 0; i < 8; i++)
+                    {
+                        memory[80+i] = temp[i];
+                    }
+                }
+                if (Utilities::toDoubleChar((*_cellDataptr)[key].baseCodeName, temp, 8, true) > 0)
+                {
+                    for (size_t i = 0; i < 8; i++)
+                    {
+                        memory[88+i] = temp[i];
+                    }
+                }
+                if (Utilities::toDoubleChar((*_cellDataptr)[key].mcuCodeName, temp, 8, true) > 0)
+                {
+                    for (size_t i = 0; i < 8; i++)
+                    {
+                        memory[96+i] = temp[i];
+                    }
+                }
+                if (Utilities::toDoubleChar((*_cellDataptr)[key].siteLocation, temp, 8, true) > 0)
+                {
+                    for (size_t i = 0; i < 8; i++)
+                    {
+                        memory[104+i] = temp[i];
+                    }
                 }
             }
-            if (Utilities::toDoubleChar(_cellDataptr[group].cmsCodeName, temp, 8, true) > 0)
+            else
             {
-                for (size_t i = 0; i < 8; i++)
-                {
-                    memory[80+i] = temp[i];
-                }
-            }
-            if (Utilities::toDoubleChar(_cellDataptr[group].baseCodeName, temp, 8, true) > 0)
-            {
-                for (size_t i = 0; i < 8; i++)
-                {
-                    memory[88+i] = temp[i];
-                }
-            }
-            if (Utilities::toDoubleChar(_cellDataptr[group].mcuCodeName, temp, 8, true) > 0)
-            {
-                for (size_t i = 0; i < 8; i++)
-                {
-                    memory[96+i] = temp[i];
-                }
-            }
-            if (Utilities::toDoubleChar(_cellDataptr[group].siteLocation, temp, 8, true) > 0)
-            {
-                for (size_t i = 0; i < 8; i++)
-                {
-                    memory[104+i] = temp[i];
-                }
+                ESP_LOGI(_TAG, "key not found");
             }
 
             for (uint8_t i = startAddr; i < endAddr; ++i) //add all requested address
@@ -162,7 +170,7 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
 
             uint16_t buff[8];
             uint16_t macBuff[6];
-            if (Utilities::toDoubleChar(_modbusRegisterData->inputRegister.packedData->rackSn, buff, 8, true))
+            if (Utilities::toDoubleChar((*_modbusRegisterData->inputRegister.packedData->rackSn), buff, 8, true))
             {
                 for (size_t i = 0; i < 8; i++)
                 {
@@ -171,7 +179,7 @@ ModbusMessage ModbusRegisterHandler::handleReadInputRegisters(const ModbusMessag
             }
 
             // Serial.println(_modbusRegisterData->inputRegister.packedData->rmsInfoPtr->mac);
-            String temp = _modbusRegisterData->inputRegister.packedData->rmsInfoPtr->mac;
+            String temp = *_modbusRegisterData->inputRegister.packedData->mac;
             
             int index = 0;
             while(index != -1)

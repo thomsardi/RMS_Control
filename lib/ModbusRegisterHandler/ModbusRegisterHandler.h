@@ -8,6 +8,7 @@
 #include <ModbusServerWiFi.h>
 #include <Preferences.h>
 #include <Utilities.h>
+#include <map>
 
 union SystemStatus {
     struct Bits {
@@ -314,8 +315,9 @@ class ModbusRegisterHandler {
         ModbusMessage handleWriteMultipleRegisters(ModbusMessage &request);
         ModbusMessage handleWriteRegister(ModbusMessage &request);
     private :
+        const char* _TAG = "Modbus Register Handler";
         size_t _cellDataSize;
-        CellData *_cellDataptr;
+        std::map<int, CMSData> *_cellDataptr;
         OtherInfo *_otherInfo;
         MbusCoilData *_mbusCoilData;
         SettingRegisters *_settingRegisters;

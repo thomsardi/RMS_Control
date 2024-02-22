@@ -10,7 +10,7 @@
 struct TalisRS485TxMessage
 {
     uint32_t token;
-    int id;
+    int id = 0;
     uint8_t requestCode;
     std::array<uint8_t, TALIS_TX_BUFFER_SIZE> txData;
     int dataLength = -1;
@@ -33,7 +33,7 @@ struct TalisRS485TxMessage
 
 struct TalisRS485RxMessage {
     uint32_t token;
-    int id;
+    int id = 0;
     uint8_t requestCode;
     uint8_t error;
     std::array<uint8_t, TALIS_RX_BUFFER_SIZE> rxData;

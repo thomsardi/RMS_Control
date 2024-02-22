@@ -33,12 +33,11 @@ class JsonManager {
         JsonManager();
         //GET method (read the data)
         int processSingleCmsDataRequest(AsyncWebServerRequest *request); //extract get parameter, return bid index
-        String buildSingleJsonData(const CellData &cellData);
+        String buildSingleJsonData(const CMSData &cmsData);
         int buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, String &buffer); //get variable cms data
-        String buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, const size_t numOfJsonObject = 8); // get 8 cms data
+        String buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData); // get 8 cms data
         String buildJsonRMSInfo(const RMSInfo& rmsInfo); // get rms info
-        String buildJsonCMSInfo(const CellData cellData[], size_t numOfJsonObject = 8); // get 8 cms info
-        String buildJsonBalancingStatus(const CellBalancingStatus cellBalancingStatus[], size_t numOfJsonObject); //get 8 cms balancing status
+        String buildJsonBalancingStatus(const std::map<int, CellBalanceState> &cellBalanceState); //get 8 cms balancing status
         String buildJsonAlarmParameter(const AlarmParam& alarmParam); // get RMS alarm parameter
         String buildJsonCommandStatus(const CommandStatus& commandStatus); // get RMS command status (addressing, alarm, data capture, sleep)
         String buildJsonAddressingStatus(const AddressingStatus &addressingStatus, size_t arraySize);
@@ -54,23 +53,21 @@ class JsonManager {
         int jsonAlarmCommandParser(const char* jsonInput, AlarmCommand &alarmCommand); // set alarm command
         int jsonDataCollectionCommandParser(const char* jsonInput); // set data collection command
         int jsonAlarmParameterParser(const char* jsonInput, AlarmParam& alarmParam); // set alarm parameter
-        int jsonHardwareAlarmEnableParser(const char* jsonInput, HardwareAlarm& hardwareAlarm); // enable /disable alarm
+        int jsonHardwareAlarmEnableParser(const char* jsonInput, bool &hardwareAlarmEnable); // enable /disable alarm
         int jsonSleepCommandParser(const char* jsonInput); // set sleep command
-        int jsonRmsCodeParser(const char* jsonInput, RmsCodeWrite &rmsCodeWrite);
-        int jsonRmsRackSnParser(const char* jsonInput, RmsRackSnWrite &rmsRackSnWrite);
-        int jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite);
-        int jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeWrite);
-        int jsonCMSBaseCodeParser(const char* jsonInput, BaseCodeWrite &baseCodeWrite);
-        int jsonCMSMcuCodeParser(const char* jsonInput, McuCodeWrite &mcuCodeWrite);
-        int jsonCMSSiteLocationParser(const char* jsonInput, SiteLocationWrite &siteLocationWrite);
-        int jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[]);
+        int jsonRmsCodeParser(const char* jsonInput, MasterWrite &masterWrite);
+        int jsonRmsRackSnParser(const char* jsonInput, MasterWrite &masterWrite);
+        int jsonCMSFrameParser(const char* jsonInput, SlaveWrite &slaveWrite);
+        int jsonCMSCodeParser(const char* jsonInput, SlaveWrite &slaveWrite);
+        int jsonCMSBaseCodeParser(const char* jsonInput, SlaveWrite &slaveWrite);
+        int jsonCMSMcuCodeParser(const char* jsonInput, SlaveWrite &slaveWrite);
+        int jsonCMSSiteLocationParser(const char* jsonInput, SlaveWrite &slaveWrite);
         int jsonCMSShutdownParser(const char* jsonInput, CMSShutDown &cmsShutdown);
         int jsonCMSWakeupParser(const char* jsonInput, CMSWakeup &cmsWakeup);
         int jsonLedParser(const char* jsonInput, LedCommand &ledCommand);
         int jsonCMSRestartParser(const char* jsonInput, CMSRestartCommand &cmsRestartCommand);
         int jsonCMSRestartPinParser(const char* jsonInput);
         int jsonRMSRestartParser(const char* jsonInput);
-        int jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter);
         NetworkSetting parseNetworkSetting(JsonVariant &json);
         int parseFactoryReset(JsonVariant &json);
 

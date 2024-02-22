@@ -33,34 +33,34 @@ int JsonManager::processSingleCmsDataRequest(AsyncWebServerRequest *request)
     }
 }
 
-String JsonManager::buildSingleJsonData(const CellData &cellData)
+String JsonManager::buildSingleJsonData(const CMSData &cmsData)
 {
     String result;
     StaticJsonDocument<1536> doc; // for 8 object
-    doc["msg_count"] = cellData.msgCount;
-    doc["frame_name"] = cellData.frameName;
-    doc["cms_code"] = cellData.cmsCodeName;
-    doc["base_code"] = cellData.baseCodeName;
-    doc["mcu_code"] = cellData.mcuCodeName;
-    doc["site_location"] = cellData.siteLocation;
-    doc["bid"] = cellData.bid;
+    doc["msg_count"] = cmsData.msgCount;
+    doc["frame_name"] = cmsData.frameName;
+    doc["cms_code"] = cmsData.cmsCodeName;
+    doc["base_code"] = cmsData.baseCodeName;
+    doc["mcu_code"] = cmsData.mcuCodeName;
+    doc["site_location"] = cmsData.siteLocation;
+    doc["bid"] = cmsData.bid;
     JsonArray vcell = doc.createNestedArray("vcell");
     for (int j = 0; j < 45; j++)
     {
-        vcell.add(cellData.vcell[j]);
+        vcell.add(cmsData.vcell[j]);
     }
     JsonArray temp = doc.createNestedArray("temp");
     for (int j = 0; j < 9; j++)
     {
-        temp.add(cellData.temp[j]);
+        temp.add(cmsData.temp[j]);
     }
     JsonArray vpack = doc.createNestedArray("pack");
     for (int k = 0; k < 3; k++)
     {
-        vpack.add(cellData.pack[k]);
+        vpack.add(cmsData.pack[k]);
     }
-    doc["wake_status"] = cellData.packStatus.bits.status;
-    doc["door_status"] = cellData.packStatus.bits.door;
+    doc["wake_status"] = cmsData.packStatus.bits.status;
+    doc["door_status"] = cmsData.packStatus.bits.door;
     serializeJson(doc, result);
     return result;
 }
@@ -73,7 +73,7 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedData 
     valueVec.setStorage(value);
     DynamicJsonDocument doc(12288);
     CellData *pointer;
-    doc["rack_sn"] = packedData.rackSn;
+    doc["rack_sn"] = *packedData.rackSn;
     String input = request->getParam("bid")->value();
     if (!request->hasParam("bid"))
     {
@@ -87,78 +87,78 @@ int JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedData 
         {
             bid = temp.toInt();
             int index = bid - 1;
-            if (index < 0 || index >= packedData.size)
+            if (index < 0 || index >= (*packedData.cms).size())
             {
                 continue;
             }
             JsonObject cms_0 = cms.createNestedObject();
-            pointer = packedData.p + index;
-            cms_0["msg_count"] = pointer->msgCount;
-            cms_0["frame_name"] = pointer->frameName;
-            cms_0["cms_code"] = pointer->cmsCodeName;
-            cms_0["base_code"] = pointer->baseCodeName;
-            cms_0["mcu_code"] = pointer->mcuCodeName;
-            cms_0["site_location"] = pointer->siteLocation;
-            cms_0["bid"] = pointer->bid;
+            
+            cms_0["msg_count"] = (*packedData.cms)[bid].msgCount;
+            cms_0["frame_name"] = (*packedData.cms)[bid].frameName;
+            cms_0["cms_code"] = (*packedData.cms)[bid].cmsCodeName;
+            cms_0["base_code"] = (*packedData.cms)[bid].baseCodeName;
+            cms_0["mcu_code"] = (*packedData.cms)[bid].mcuCodeName;
+            cms_0["site_location"] = (*packedData.cms)[bid].siteLocation;
+            cms_0["bid"] = (*packedData.cms)[bid].bid;
             JsonArray vcell = cms_0.createNestedArray("vcell");
             for ( int j = 0; j < 45; j++)
             {
-                vcell.add(pointer->vcell[j]);
+                vcell.add((*packedData.cms)[bid].vcell[j]);
             }
             JsonArray temp = cms_0.createNestedArray("temp");
             for (int j = 0; j < 9; j++)
             {
-                temp.add(pointer->temp[j]);
+                temp.add((*packedData.cms)[bid].temp[j]);
             }
             JsonArray vpack = cms_0.createNestedArray("pack");
             for (int k = 0; k < 3; k++)
             {
-                vpack.add(pointer->pack[k]);
+                vpack.add((*packedData.cms)[bid].pack[k]);
             }
-            cms_0["wake_status"] = pointer->packStatus.bits.status;
-            cms_0["door_status"] = pointer->packStatus.bits.door;
+            cms_0["wake_status"] = (*packedData.cms)[bid].packStatus.bits.status;
+            cms_0["door_status"] = (*packedData.cms)[bid].packStatus.bits.door;
         }
     }
     serializeJson(doc, buffer);
     return 1;
 }
 
-String JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData, const size_t numOfJsonObject) 
+String JsonManager::buildJsonData(AsyncWebServerRequest *request, const PackedData &packedData) 
 {
     String result;
     int bid = 0;
     DynamicJsonDocument doc(12300); //for 8 object
     CellData *pointer;
-    doc["rack_sn"] = packedData.rackSn;
+    doc["rack_sn"] = *packedData.rackSn;
+    std::map<int, CMSData>::iterator it;
     JsonArray cms = doc.createNestedArray("cms_data");
-    for (size_t i = 0; i < numOfJsonObject; i++)
+    for (it = packedData.cms->begin(); it != packedData.cms->end(); it++)
     {
         JsonObject cms_0 = cms.createNestedObject();
-        pointer = packedData.p + i;
-        cms_0["msg_count"] = pointer->msgCount;
-        cms_0["frame_name"] = pointer->frameName;
-        cms_0["cms_code"] = pointer->cmsCodeName;
-        cms_0["base_code"] = pointer->baseCodeName;
-        cms_0["mcu_code"] = pointer->mcuCodeName;
-        cms_0["site_location"] = pointer->siteLocation;
-        cms_0["bid"] = pointer->bid;
+        cms_0["msg_count"] = (*it).second.msgCount;
+        cms_0["frame_name"] = (*it).second.frameName;
+        cms_0["cms_code"] = (*it).second.cmsCodeName;
+        cms_0["base_code"] = (*it).second.baseCodeName;
+        cms_0["mcu_code"] = (*it).second.mcuCodeName;
+        cms_0["site_location"] = (*it).second.siteLocation;
+        cms_0["bid"] = (*it).first;
         JsonArray vcell = cms_0.createNestedArray("vcell");
-        for ( int j = 0; j < 45; j++)
+        for (int j = 0; j < (*it).second.vcell.size(); j++)
         {
-            vcell.add(pointer->vcell[j]);
+            vcell.add((*it).second.vcell[j]);
         }
         JsonArray temp = cms_0.createNestedArray("temp");
-        for (int j = 0; j < 9; j++)
+        for (int j = 0; j < (*it).second.temp.size(); j++)
         {
-            temp.add(pointer->temp[j]);
+            temp.add((*it).second.temp[j]);
         }
         JsonArray vpack = cms_0.createNestedArray("pack");
-        for (int k = 0; k < 3; k++)
+        for (int k = 0; k < (*it).second.pack.size(); k++)
         {
-            vpack.add(pointer->pack[k]);
+            vpack.add((*it).second.pack[k]);
         }
-        cms_0["wake_status"] = pointer->packStatus.bits.status;
-        cms_0["door_status"] = pointer->packStatus.bits.door;
+        cms_0["wake_status"] = (*it).second.packStatus.bits.status;
+        cms_0["door_status"] = (*it).second.packStatus.bits.door;
     }
     serializeJson(doc, result);
     return result;
@@ -216,41 +216,21 @@ String JsonManager::buildJsonRMSInfo(const RMSInfo& rmsInfo)
     return result;
 }
 
-String JsonManager::buildJsonCMSInfo(const CellData cellData[], size_t numOfJsonObject)
-{
-    String result;
-    StaticJsonDocument<1536> doc;
-    JsonArray cms_info = doc.createNestedArray("cms_info");
-    for (size_t i = 0; i < numOfJsonObject; i++)
-    {
-        JsonObject cms_info_0 = cms_info.createNestedObject();
-        cms_info_0["frame_name"] = cellData[i].frameName;
-        cms_info_0["bid"] = cellData[i].bid;
-        cms_info_0["cms_code"] = cellData[i].cmsCodeName;
-        cms_info_0["base_code"] = cellData[i].baseCodeName;
-        cms_info_0["mcu_code"] = cellData[i].mcuCodeName;
-        cms_info_0["site_location"] = cellData[i].siteLocation;
-        cms_info_0["ver"] = cellData[i].ver;
-        cms_info_0["chip"] = cellData[i].chip;
-    }
-    serializeJson(doc, result);
-    return result;
-}
-
-String JsonManager::buildJsonBalancingStatus(const CellBalancingStatus cellBalancingStatus[], size_t numOfJsonObject)
+String JsonManager::buildJsonBalancingStatus(const std::map<int, CellBalanceState> &cellBalanceState)
 {
     String result;
     DynamicJsonDocument doc(8192);
     JsonArray balancing_status = doc.createNestedArray("balancing_status");
-    
-    for (size_t i = 0; i < numOfJsonObject; i++)
+    std::map<int, CellBalanceState>::const_iterator it;
+    for (it = cellBalanceState.begin(); it != cellBalanceState.end(); it++)
     {
         JsonObject balancing_status_0 = balancing_status.createNestedObject();
-        balancing_status_0["bid"] = cellBalancingStatus[i].bid;
+        balancing_status_0["bid"] = (*it).second.bid;
         JsonArray balancing_status_0_cball = balancing_status_0.createNestedArray("cball");
-        for (size_t j = 0; j < 45; j++)
+        size_t arrSize = (*it).second.cball.size();
+        for (size_t j = 0; j < arrSize; j++)
         {
-            balancing_status_0_cball.add(cellBalancingStatus[i].cball[j]);
+            balancing_status_0_cball.add((*it).second.cball[j]);
         }
     }
     serializeJson(doc, result);
@@ -275,11 +255,17 @@ String JsonManager::buildJsonAlarmParameter(const AlarmParam& alarmParam)
 String JsonManager::buildJsonCommandStatus(const CommandStatus& commandStatus)
 {
     String result;
-    StaticJsonDocument<64> doc;
+    StaticJsonDocument<256> doc;
     doc["addr"] = commandStatus.addrCommand;
-    doc["alarm"] = commandStatus.alarmCommand;
     doc["data_collection"] = commandStatus.dataCollectionCommand;
-    doc["sleep_command"] = commandStatus.sleepCommand;
+    doc["restart_cms"] = commandStatus.restartCms;
+    doc["restart_rms"] = commandStatus.restartRms;
+    doc["manual_override"] = commandStatus.manualOverride;
+    doc["buzzer"] = commandStatus.buzzer;
+    doc["relay"] = commandStatus.relay;
+    doc["factory_reset"] = commandStatus.factoryReset;
+    doc["buzzer_force"] = commandStatus.buzzerForce;
+    doc["relay_force"] = commandStatus.relayForce;
     serializeJson(doc, result);
     return result;
 }
@@ -562,7 +548,7 @@ int JsonManager::jsonAlarmParameterParser(const char* jsonInput, AlarmParam& ala
     return 1;
 }
 
-int JsonManager::jsonHardwareAlarmEnableParser(const char* jsonInput, HardwareAlarm& hardwareAlarm)
+int JsonManager::jsonHardwareAlarmEnableParser(const char* jsonInput, bool &hardwareAlarmEnable)
 {
     StaticJsonDocument<128> doc;
 
@@ -577,7 +563,7 @@ int JsonManager::jsonHardwareAlarmEnableParser(const char* jsonInput, HardwareAl
     {
         return -1;
     }
-    hardwareAlarm.enable = doc["hardware_alarm"];
+    hardwareAlarmEnable = doc["hardware_alarm"];
     return 1;
 }
 
@@ -603,7 +589,7 @@ int JsonManager::jsonSleepCommandParser(const char* jsonInput)
     return command;
 }
 
-int JsonManager::jsonRmsCodeParser(const char* jsonInput, RmsCodeWrite &rmsCodeWrite)
+int JsonManager::jsonRmsCodeParser(const char* jsonInput, MasterWrite &masterWrite)
 {
     int command = 0;
     int bid = 0;
@@ -621,17 +607,16 @@ int JsonManager::jsonRmsCodeParser(const char* jsonInput, RmsCodeWrite &rmsCodeW
         return -1;
     }
 
-    rmsCodeWrite.write = doc["rms_code_write"]; // 1
-    if (rmsCodeWrite.write)
+    masterWrite.write = doc["rms_code_write"]; // 1
+    if (masterWrite.write)
     {
-        rmsCodeWrite.rmsCode = doc["rms_code"].as<String>();
-        command = rmsCodeWrite.write;
+        masterWrite.content = doc["rms_code"].as<String>();
+        command = masterWrite.write;
     }
-    Serial.println(rmsCodeWrite.rmsCode);
     return command;
 }
 
-int JsonManager::jsonRmsRackSnParser(const char* jsonInput, RmsRackSnWrite &rmsRackSnWrite)
+int JsonManager::jsonRmsRackSnParser(const char* jsonInput, MasterWrite &masterWrite)
 {
     int command = 0;
     int bid = 0;
@@ -649,17 +634,16 @@ int JsonManager::jsonRmsRackSnParser(const char* jsonInput, RmsRackSnWrite &rmsR
         return -1;
     }
 
-    rmsRackSnWrite.write = doc["rack_sn_write"]; // 1
-    if (rmsRackSnWrite.write)
+    masterWrite.write = doc["rack_sn_write"]; // 1
+    if (masterWrite.write)
     {
-        rmsRackSnWrite.rackSn = doc["rack_sn"].as<String>();
-        command = rmsRackSnWrite.write;
+        masterWrite.content = doc["rack_sn"].as<String>();
+        command = masterWrite.write;
     }
-    Serial.println(rmsRackSnWrite.rackSn);
     return command;
 }
 
-int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrite)
+int JsonManager::jsonCMSFrameParser(const char* jsonInput, SlaveWrite &slaveWrite)
 {
     int command = 0;
     int bid = 0;
@@ -675,7 +659,7 @@ int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrit
     if (doc.containsKey("bid"))
     {
         bid = doc["bid"];
-        frameWrite.bid = bid;
+        slaveWrite.bid = bid;
     }
     else
     {
@@ -686,17 +670,17 @@ int JsonManager::jsonCMSFrameParser(const char* jsonInput, FrameWrite &frameWrit
         return -1;
     }
 
-    frameWrite.write = doc["frame_write"]; // 1
-    if (frameWrite.write)
+    slaveWrite.write = doc["frame_write"]; // 1
+    if (slaveWrite.write)
     {
-        frameWrite.frameName = doc["frame_name"].as<String>();
-        command = frameWrite.write;
+        slaveWrite.content = doc["frame_name"].as<String>();
+        command = slaveWrite.write;
     }
     return command;
 }
 
 
-int JsonManager::jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeWrite)
+int JsonManager::jsonCMSCodeParser(const char* jsonInput, SlaveWrite &slaveWrite)
 {
     int command = 0;
     int bid = 0;
@@ -712,7 +696,7 @@ int JsonManager::jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeW
     if (doc.containsKey("bid"))
     {
         bid = doc["bid"];
-        cmsCodeWrite.bid = bid;
+        slaveWrite.bid = bid;
     }
     else
     {
@@ -723,16 +707,16 @@ int JsonManager::jsonCMSCodeParser(const char* jsonInput, CMSCodeWrite &cmsCodeW
         return -1;
     }
 
-    cmsCodeWrite.write = doc["cms_write"]; // 1
-    if (cmsCodeWrite.write)
+    slaveWrite.write = doc["cms_write"]; // 1
+    if (slaveWrite.write)
     {
-        cmsCodeWrite.cmsCode = doc["cms_code"].as<String>();
-        command = cmsCodeWrite.write;
+        slaveWrite.content = doc["cms_code"].as<String>();
+        command = slaveWrite.write;
     }
     return command;
 }
 
-int JsonManager::jsonCMSBaseCodeParser(const char* jsonInput, BaseCodeWrite &baseCodeWrite)
+int JsonManager::jsonCMSBaseCodeParser(const char* jsonInput, SlaveWrite &slaveWrite)
 {
     int command = 0;
     int bid = 0;
@@ -748,7 +732,7 @@ int JsonManager::jsonCMSBaseCodeParser(const char* jsonInput, BaseCodeWrite &bas
     if (doc.containsKey("bid"))
     {
         bid = doc["bid"];
-        baseCodeWrite.bid = bid;
+        slaveWrite.bid = bid;
     }
     else
     {
@@ -759,16 +743,16 @@ int JsonManager::jsonCMSBaseCodeParser(const char* jsonInput, BaseCodeWrite &bas
         return -1;
     }
 
-    baseCodeWrite.write = doc["base_write"]; // 1
-    if (baseCodeWrite.write)
+    slaveWrite.write = doc["base_write"]; // 1
+    if (slaveWrite.write)
     {
-        baseCodeWrite.baseCode = doc["base_code"].as<String>();
-        command = baseCodeWrite.write;
+        slaveWrite.content = doc["base_code"].as<String>();
+        command = slaveWrite.write;
     }
     return command;
 }
 
-int JsonManager::jsonCMSMcuCodeParser(const char* jsonInput, McuCodeWrite &mcuCodeWrite)
+int JsonManager::jsonCMSMcuCodeParser(const char* jsonInput, SlaveWrite &slaveWrite)
 {
     int command = 0;
     int bid = 0;
@@ -784,7 +768,7 @@ int JsonManager::jsonCMSMcuCodeParser(const char* jsonInput, McuCodeWrite &mcuCo
     if (doc.containsKey("bid"))
     {
         bid = doc["bid"];
-        mcuCodeWrite.bid = bid;
+        slaveWrite.bid = bid;
     }
     else
     {
@@ -795,16 +779,16 @@ int JsonManager::jsonCMSMcuCodeParser(const char* jsonInput, McuCodeWrite &mcuCo
         return -1;
     }
 
-    mcuCodeWrite.write = doc["mcu_write"]; // 1
-    if (mcuCodeWrite.write)
+    slaveWrite.write = doc["mcu_write"]; // 1
+    if (slaveWrite.write)
     {
-        mcuCodeWrite.mcuCode = doc["mcu_code"].as<String>();
-        command = mcuCodeWrite.write;
+        slaveWrite.content = doc["mcu_code"].as<String>();
+        command = slaveWrite.write;
     }
     return command;
 }
 
-int JsonManager::jsonCMSSiteLocationParser(const char* jsonInput, SiteLocationWrite &siteLocationWrite)
+int JsonManager::jsonCMSSiteLocationParser(const char* jsonInput, SlaveWrite &slaveWrite)
 {
     int command = 0;
     int bid = 0;
@@ -820,7 +804,7 @@ int JsonManager::jsonCMSSiteLocationParser(const char* jsonInput, SiteLocationWr
     if (doc.containsKey("bid"))
     {
         bid = doc["bid"];
-        siteLocationWrite.bid = bid;
+        slaveWrite.bid = bid;
     }
     else
     {
@@ -831,93 +815,13 @@ int JsonManager::jsonCMSSiteLocationParser(const char* jsonInput, SiteLocationWr
         return -1;
     }
 
-    siteLocationWrite.write = doc["site_write"]; // 1
-    if (siteLocationWrite.write)
+    slaveWrite.write = doc["site_write"]; // 1
+    if (slaveWrite.write)
     {
-        siteLocationWrite.siteLocation = doc["site_location"].as<String>();
-        command = siteLocationWrite.write;
+        slaveWrite.content = doc["site_location"].as<String>();
+        command = slaveWrite.write;
     }
     return command;
-}
-
-
-int JsonManager::jsonBalancingStatusParser(const char* jsonInput, CellBalancingStatus cellBalancingStatus[])
-{
-    int bid = 0;
-    int startIndex = 0;
-    DynamicJsonDocument doc(512);
-    DeserializationError error = deserializeJson(doc, jsonInput);
-
-    if (error) {
-        Serial.print("deserializeJson() failed: ");
-        Serial.println(error.c_str());
-        return -1;
-    }
-
-    if (doc.containsKey("BID"))
-    {
-        bid = doc["BID"];
-        startIndex = bid - 1;
-    }
-    else
-    {
-        return -1;
-    }
-
-    if (!(doc.containsKey("RBAL1.1") && doc.containsKey("RBAL2.1") && doc.containsKey("RBAL3.1")))
-    {
-        return -1;
-    }
-
-    int rbal[3];
-    rbal[0] = doc["RBAL1.1"];
-    rbal[1] = doc["RBAL1.2"];
-    rbal[2] = doc["RBAL1.3"];
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i] = getBit(i, rbal[0]);
-    }
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+5] = getBit(i, rbal[1]);
-    }
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+10] = getBit(i, rbal[2]);
-    }
-
-    rbal[0] = doc["RBAL2.1"];
-    rbal[1] = doc["RBAL2.2"];
-    rbal[2] = doc["RBAL2.3"];
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+15] = getBit(i, rbal[0]);
-    }
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+20] = getBit(i, rbal[1]);
-    }
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+25] = getBit(i, rbal[2]);
-    }
-
-    rbal[0] = doc["RBAL3.1"];
-    rbal[1] = doc["RBAL3.2"];
-    rbal[2] = doc["RBAL3.3"];
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+30] = getBit(i, rbal[0]);
-    }
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+35] = getBit(i, rbal[1]);
-    }
-    for (size_t i = 0; i < 5; i++)
-    {
-        cellBalancingStatus[startIndex].cball[i+40] = getBit(i, rbal[2]);
-    }
-    return 1;
 }
 
 int JsonManager::jsonCMSShutdownParser(const char* jsonInput, CMSShutDown &cmsShutdown)
@@ -1054,42 +958,6 @@ int JsonManager::jsonRMSRestartParser(const char* jsonInput)
     }
     command = doc["restart"]; // 1
     return command;
-}
-
-int JsonManager::jsonOtaUpdate(const char* jsonInput, OtaParameter &otaParameter)
-{
-    StaticJsonDocument<192> doc;
-    DeserializationError error = deserializeJson(doc, jsonInput);
-
-    if (error) {
-        Serial.print("deserializeJson() failed: ");
-        Serial.println(error.c_str());
-        return -1;
-    }
-
-    if (!doc.containsKey("ota_update")) 
-    {
-        return -1;
-    }
-
-    if (!doc.containsKey("server")) 
-    {
-        return -1;
-    }
-    if (!doc.containsKey("port")) 
-    {
-        return -1;
-    }
-    if (!doc.containsKey("path")) 
-    {
-        return -1;
-    }
-
-    otaParameter.isOtaUpdate = doc["ota_update"];
-    otaParameter.server = doc["server"].as<String>();
-    otaParameter.port = doc["port"];
-    otaParameter.path = doc["path"].as<String>();
-    return 1;
 }
 
 /**

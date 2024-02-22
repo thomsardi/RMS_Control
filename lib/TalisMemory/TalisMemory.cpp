@@ -316,6 +316,22 @@ String TalisMemory::getRackSn()
 }
 
 /**
+ * Get hardware alarm setting from storage
+ * 
+ * @return  hardware alarm
+*/
+bool TalisMemory::getHardwareAlarm()
+{
+    // return _params.hardwareAlarm;
+    Preferences _preferences;
+    bool value;
+    _preferences.begin(_storageName.data(), true);
+    value = _preferences.getBool(_memoryMap.userMap.parameter["hardware_alarm"].c_str());
+    _preferences.end();
+    return value;
+}
+
+/**
  * Get configured flag from storage
  * 
  * @brief   when the namespace / factory reset called, the configured flag will be reset to 0. this will force re-create or 
@@ -442,7 +458,7 @@ bool TalisMemory::setSubnet(const char* value)
 /**
  * set server type into storage
  * 
- * @param   value   server type (0 - 2)
+ * @param   value   server type (1 - 2)
  * @return  true if success, otherwise false
 */
 bool TalisMemory::setServer(uint8_t value)
@@ -462,7 +478,7 @@ bool TalisMemory::setServer(uint8_t value)
 /**
  * set mode into storage
  * 
- * @param   value   mode (0 - 1)
+ * @param   value   mode (1 - 3)
  * @return  true if success, otherwise false
 */
 bool TalisMemory::setMode(uint8_t value)
@@ -660,6 +676,26 @@ bool TalisMemory::setRackSn(const char* value)
 }
 
 /**
+ * set hardware alarm setting into storage
+ * 
+ * @param   value   hardware alarm
+ * @return  true if success, otherwise false
+*/
+bool TalisMemory::setHardwareAlarm(bool value)
+{
+    Preferences _preferences;
+    bool status;
+    _preferences.begin(_storageName.data());
+    if (_preferences.putBool(_memoryMap.userMap.parameter["hardware_alarm"].c_str(), value))
+    {
+        status = true;
+        _params.hardwareAlarm = value;
+    }
+    _preferences.end();
+    return status;
+}
+
+/**
  * Set configured flag to storage
  * 
  * @param   value   the value to be written into
@@ -722,6 +758,7 @@ void TalisMemory::create(const TalisDefinition::Params &params)
     _preferences.putInt(_memoryMap.defaultMap.parameter["cell_undertemperature"].c_str(), params.cellUndertemperature);
     _preferences.putString(_memoryMap.defaultMap.parameter["rms_name"].c_str(), params.rmsName);
     _preferences.putString(_memoryMap.defaultMap.parameter["rack_sn"].c_str(), params.rackSn);
+    _preferences.putBool(_memoryMap.defaultMap.parameter["hardware_alarm"].c_str(), params.hardwareAlarm);
     
     /**
      * Copy default setting into user setting
@@ -746,6 +783,7 @@ void TalisMemory::create(const TalisDefinition::Params &params)
     _preferences.putInt(_memoryMap.userMap.parameter["cell_undertemperature"].c_str(), _preferences.getInt(_memoryMap.defaultMap.parameter["cell_undertemperature"].c_str()));
     _preferences.putString(_memoryMap.userMap.parameter["rms_name"].c_str(), _preferences.getString(_memoryMap.defaultMap.parameter["rms_name"].c_str()));
     _preferences.putString(_memoryMap.userMap.parameter["rack_sn"].c_str(), _preferences.getString(_memoryMap.defaultMap.parameter["rack_sn"].c_str()));
+    _preferences.putBool(_memoryMap.userMap.parameter["hardware_alarm"].c_str(), _preferences.getBool(_memoryMap.defaultMap.parameter["hardware_alarm"].c_str()));
 
     _preferences.putBool(_memoryMap.defaultMap.flag["configured_flag"].c_str(), 1);
 

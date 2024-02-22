@@ -94,23 +94,22 @@ void LedAnimation::restart()
     
 }
 
-LedData LedAnimation::update()
+void LedAnimation::update()
 {
-    LedData ledData;
     if(!_isRun)
     {
-        return ledData;
+        return;
     }
     if (_groupNumber < 0 || _stringNumber < 0)
     {
-        return ledData;
+        return;
     }
     // Serial.println("Group : " + String(_currentGroup));
     // Serial.println("String : " + String(_currentString));
     _ledData.currentGroup = _currentGroup;
     _ledData.currentString = _currentString;
-    ledData.currentGroup = _ledData.currentGroup;
-    ledData.currentString = _ledData.currentString;
+    _outputLedData.currentGroup = _ledData.currentGroup;
+    _outputLedData.currentString = _ledData.currentString;
     // Serial.println("Current Group : " + String(_currentGroup));
     // Serial.println("Current String : " + String(_currentString));
     for (size_t i = 0; i < _stringNumber; i++)
@@ -130,9 +129,9 @@ LedData LedAnimation::update()
                 _ledData.blue[i] = 0;
             }
         }
-        ledData.red[i] = _ledData.red[i];
-        ledData.green[i] = _ledData.green[i];
-        ledData.blue[i] = _ledData.blue[i];
+        _outputLedData.red[i] = _ledData.red[i];
+        _outputLedData.green[i] = _ledData.green[i];
+        _outputLedData.blue[i] = _ledData.blue[i];
     }
 
     if(_isUp)
@@ -224,7 +223,11 @@ LedData LedAnimation::update()
             _isGroupChanged = false;
         }
     }
-    return ledData;
+}
+
+LedData LedAnimation::getLed()
+{
+    return _outputLedData;
 }
 
 void LedAnimation::resetLedData()

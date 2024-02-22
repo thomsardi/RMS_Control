@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UPDATE</title>
+    <link rel="stylesheet" href="/assets/index.css">
+    <link rel="stylesheet" href="/assets/update_styles.css">
+</head>
+<body>
+    <div>
+		<nav>
+			<label class="logo">Rack Management System</label>
+			<ul>
+				<li><a href="/">Home</a></li>
+				<li><a href="/update">Update</a></li>
+			</ul>
+		</nav>
+	</div>
+    <div class="inner-grid">
+        <div class="content-grid headline">
+            <h1 class="text-css-center">OTA Upload</h1>
+        </div>
+        <div class="content-grid">
+            <h4 class="text-css-center">Please choose your file</h4>
+        </div>
+        <div class="content-grid">
+            <div class="flex-container">
+                <input type="radio" id="flashradio" name="filetype" value="Flash" checked>
+                <label for="flashradio">Flash</label>
+                <input type="radio" id="filesystemradio" name="filetype" value="Filesystem">
+                <label for="filesystemradio">Filesystem</label>
+            </div>
+        </div>
+        <div class="content-grid text-css-center">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" name="fileToUpload" id="fileToUpload" accept=".bin, .zz">
+                <input type="submit" value="Upload File" id="uploadButton">
+            </form>
+            <div id="progressWrapper" class="hidden-fadeout">
+                <div id="progressBar"></div>
+                <div id="progressStatus">
+                    <progress id = "barGauge" min = "0" max = "100" value="0"></progress>
+                    <label for = "barGauge" id = "labelProgress">0%</label>    
+                </div>
+                <div id="response">
+                    <p><span id="content-text"></span></p>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    <script src="/assets/progressUpload.js"></script>
+</body>
+</html>

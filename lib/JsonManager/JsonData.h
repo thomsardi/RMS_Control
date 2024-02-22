@@ -2,22 +2,55 @@
 #define JSONDATA_H
 
 #include <Arduino.h>
+#include <memory.h>
+#include <map>
 
-struct CellData
+struct CellData 
 {
     uint16_t msgCount = 0;
-    String rackSn = "";
-    String frameName = "";
-    String cmsCodeName = "";
-    String baseCodeName = "";
-    String mcuCodeName = "";
-    String siteLocation = "";
-    String ver = "";
-    String chip = "";
+    String frameName = "FRAME-32-NA";
+    String cmsCodeName = "CMS-32-NA";
+    String baseCodeName = "BASE-32-NA";
+    String mcuCodeName = "MCU-32-NA";
+    String siteLocation = "SITE-32-NA";
+    String ver = "VER-32-NA";
+    String chip = "CHIP-32-NA";
     int bid = 0;
-    int vcell[45] = {0};
-    int32_t temp[9] = {0};
-    int32_t pack[3] = {0};
+    std::array<int, 45> vcell;
+    std::array<int32_t, 9> temp;
+    std::array<int32_t, 3> pack;
+
+    union PackStatus {
+        struct Bits {
+            uint16_t cellDiffAlarm : 1;
+            uint16_t cellOvervoltage : 1;
+            uint16_t cellUndervoltage : 1;
+            uint16_t overtemperature : 1;
+            uint16_t undertemperature : 1;
+            uint16_t : 3;
+            uint16_t status : 1;
+            uint16_t door : 1;
+            uint16_t : 6;
+        } bits;
+        uint16_t val;
+    } packStatus;
+};
+
+struct CMSData
+{
+    uint16_t msgCount = 0;
+    uint8_t errorCount = 0;
+    String frameName = "FRAME-32-NA";
+    String cmsCodeName = "CMS-32-NA";
+    String baseCodeName = "BASE-32-NA";
+    String mcuCodeName = "MCU-32-NA";
+    String siteLocation = "SITE-32-NA";
+    String ver = "VER-32-NA";
+    String chip = "CHIP-32-NA";
+    int bid = 0;
+    std::array<int, 45> vcell;
+    std::array<int32_t, 9> temp;
+    std::array<int32_t, 3> pack;
 
     union PackStatus {
         struct Bits {
@@ -34,8 +67,14 @@ struct CellData
         uint16_t val;
     } packStatus;
 
-    // int status = 0;
-    // int door = 0;
+    CMSData()
+    {
+        vcell.fill(-1);
+        temp.fill(-1);
+        pack.fill(-1);
+        packStatus.val = 0;
+    }
+
 };
 
 struct RMSInfo
@@ -49,26 +88,10 @@ struct RMSInfo
 };
 
 struct PackedData {
-    String rackSn = "";
-    CellData *p;
-    int size;
-    RMSInfo *rmsInfoPtr;
+    String *rackSn;
+    String *mac;
+    std::map<int, CMSData>* cms;
 };
-
-
-
-struct CMSInfo
-{
-    String frameName = "";
-    int bid = 0;
-    String cmsCodeName = "";
-    String baseCodeName = "";
-    String mcuCodeName = "";
-    String siteLocation = "";
-    String ver = "";
-    String chip = "";
-};
-
 
 struct AlarmParam
 {
@@ -81,25 +104,16 @@ struct AlarmParam
     int32_t temp_min = 0;
 };
 
-struct HardwareAlarm
-{
-    int enable;
-};
-
-struct CellAlarm
-{
-    int cell_number = 0;
-    int alm_status = 0;
-    int alm_code = 0;
-};
-
-// used to send the balancing status to mini-pc
-struct CellBalancingStatus
+struct CellBalanceState
 {
     int bid = 0;
-    int cball[45] = {0};
-};
+    std::array<int, 45> cball;
 
+    CellBalanceState()
+    {
+        cball.fill(0);
+    }
+};
 
 // used to store command from mini-pc
 struct CellBalancingCommand
@@ -121,15 +135,16 @@ struct LedCommand
 
 struct CommandStatus
 {
-    int addrCommand = 0;
-    int alarmCommand = 0;
-    int dataCollectionCommand = 0;
-    int sleepCommand = 0;
-};
-
-struct AddressingCommand
-{
-    int exec = 0;
+    uint8_t addrCommand = 0;
+    uint8_t dataCollectionCommand = 0;
+    uint8_t restartCms = 0;
+    uint8_t restartRms = 0;
+    uint8_t manualOverride = 0;
+    uint8_t buzzer = 0;
+    uint8_t relay = 0;
+    uint8_t factoryReset = 0;
+    uint8_t buzzerForce = 0;
+    uint8_t relayForce = 0;
 };
 
 struct AlarmCommand
@@ -140,11 +155,6 @@ struct AlarmCommand
 };
 
 struct DataCollectionCommand
-{
-    int exec = 0;
-};
-
-struct SleepCommand
 {
     int exec = 0;
 };
@@ -160,51 +170,17 @@ struct RMSRestartCommand
     int restart = 0;
 };
 
-struct FrameWrite
+struct MasterWrite
+{
+    int write = 0;
+    String content = "";
+};
+
+struct SlaveWrite
 {
     int bid = 0;
     int write = 0;
-    String frameName = "";
-};
-
-struct RmsCodeWrite
-{
-    int write = 0;
-    String rmsCode = "";
-};
-
-struct RmsRackSnWrite
-{
-    int write = 0;
-    String rackSn = "";
-};
-
-struct CMSCodeWrite
-{
-    int bid = 0;
-    int write = 0;
-    String cmsCode = "";
-};
-
-struct BaseCodeWrite
-{
-    int bid = 0;
-    int write = 0;
-    String baseCode = "";
-};
-
-struct McuCodeWrite
-{
-    int bid = 0;
-    int write = 0;
-    String mcuCode = "";
-};
-
-struct SiteLocationWrite
-{
-    int bid = 0;
-    int write = 0;
-    String siteLocation = "";
+    String content = "";
 };
 
 struct CMSShutDown
@@ -217,14 +193,6 @@ struct CMSWakeup
 {
     int bid = 0;
     int wakeup = 0;
-};
-
-struct OtaParameter
-{
-    bool isOtaUpdate = 0;
-    String server = "";
-    int port = 80;
-    String path = "";
 };
 
 struct AddressingStatus
